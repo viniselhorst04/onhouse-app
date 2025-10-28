@@ -1,0 +1,21 @@
+{
+  "name": "OnHouse",
+  "short_name": "OnHouse",
+  "description": "Gestão de Condomínio - Notificações, entregas, reservas e liberações.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f5f4f",
+  "theme_color": "#0f5f4f",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512"
+    }
+  ]
+}

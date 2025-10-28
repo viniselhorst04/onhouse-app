@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>OnHouse - Gestão de Condomínio</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0f5f4f" />
+
+  <style>
+    :root{
+      --bg:#f2f4f6; --card:#ffffff; --accent:#0f5f4f; --muted:#7b8687; --green:#0b6b58;
+      --text:#072021;
+    }
+    [data-theme="dark"]{
+      --bg:#071012; --card:#07171a; --accent:#0f5f4f; --muted:#9aa6a6; --text:#e5f7f2;
+    }
+    *{box-sizing:border-box;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial}
+    body{margin:0;background:var(--bg);color:var(--text);display:flex;justify-content:center;align-items:flex-start;padding:20px;min-height:100vh}
+    .device{width:380px;max-width:96vw;background:var(--card);border-radius:18px;box-shadow:0 18px 40px rgba(6,20,28,0.22);overflow:hidden;border:6px solid rgba(15,95,79,0.06)}
+    .screen{height:760px;padding:18px;display:flex;flex-direction:column}
+    .top{display:flex;align-items:center;gap:12px}
+    .avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#cfeee6,#9fd7cc);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff}
+    .user h3{margin:0;font-size:15px}
+    .user p{margin:0;color:var(--muted);font-size:12px}
+    .clock{color:var(--muted);font-size:12px}
+    .cards{display:flex;gap:12px;margin:12px 0}
+    .card{flex:1;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));border-radius:12px;padding:8px;min-height:120px;cursor:pointer;overflow:hidden}
+    .card img{width:100%;height:78px;object-fit:cover;border-radius:8px}
+    .card small{display:block;margin-top:8px;color:var(--muted);font-weight:600}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+    .tile{background:var(--card);border-radius:12px;padding:14px;display:flex;flex-direction:row;align-items:center;gap:12px;cursor:pointer;box-shadow:0 6px 14px rgba(10,30,30,0.04)}
+    .tile .icon{width:44px;height:44;border-radius:10px;background:linear-gradient(180deg,#f2faf7,#e8f3ef);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--green)}
+    .tile small{color:var(--muted)}
+    .nav{margin-top:auto;display:flex;gap:10px;padding-top:10px;align-items:center}
+    .nav button{flex:1;padding:10px;border-radius:10px;border:none;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer}
+    .panel-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(6,20,20,0.45);z-index:999}
+    .panel{width:92%;max-width:540px;background:var(--card);border-radius:12px;padding:16px;max-height:88vh;overflow:auto}
+    .primary{background:var(--accent);color:#fff;border:none;padding:10px 14px;border-radius:8px;cursor:pointer}
+    input,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #e6eceb;margin-top:8px}
+    .list{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+    .item{background:var(--card);border-radius:10px;padding:10px;box-shadow:0 6px 12px rgba(10,30,30,0.03)}
+    .small{font-size:13px;color:var(--muted)}
+    .topbar-actions{margin-left:auto;display:flex;gap:8px}
+    .toggle{background:transparent;border:1px solid #e6eceb;padding:6px;border-radius:8px;cursor:pointer}
+    .brand{font-weight:700;color:var(--accent);font-size:20px}
+    .logo-inline{display:flex;align-items:center;gap:10px}
+    .empty{color:var(--muted);text-align:center;padding:10px}
+    footer.note{font-size:12px;color:var(--muted);text-align:center;padding:8px}
+  </style>
+</head>
+<body>
+  <div class="device" role="application" aria-label="OnHouse app">
+    <div class="screen" id="home-screen">
+      <div style="display:flex;align-items:center;">
+        <div class="logo-inline">
+          <img src="icon.svg" alt="OnHouse" style="width:42px;height:42px;border-radius:8px"/>
+          <div>
+            <div class="brand">OnHouse</div>
+            <div class="small">Gestão de Condomínio</div>
+          </div>
+        </div>
+        <div class="topbar-actions" style="margin-left:auto">
+          <button class="toggle" id="theme-toggle">🌙</button>
+          <button class="toggle" id="install-btn" style="display:none">Instalar</button>
+        </div>
+      </div>
+
+      <div class="top" style="margin-top:12px">
+        <div class="avatar" id="avatar">HF</div>
+        <div class="user"><h3 id="username">Tainara</h3><p class="small">Condomínio</p></div>
+        <div class="clock small" id="time">--:--</div>
+      </div>
+
+      <div class="cards" id="mural-cards"></div>
+
+      <h4 style="margin:10px 0 6px 0">Facilidades</h4>
+      <div class="grid">
+        <div class="tile" id="t-visitor"><div class="icon">👥</div><div><strong>Liberar Visitante</strong><div class="small">Registre a liberação</div></div></div>
+        <div class="tile" id="t-deliveries"><div class="icon">📦</div><div><strong>Entregas</strong><div class="small">Registrar chegada</div></div></div>
+        <div class="tile" id="t-reservations"><div class="icon">📅</div><div><strong>Reservas</strong><div class="small">Salão, Quadra...</div></div></div>
+        <div class="tile" id="t-announce"><div class="icon">📢</div><div><strong>Nova Notificação</strong><div class="small">Enviar para os moradores</div></div></div>
+      </div>
+
+      <div style="margin-top:14px">
+        <h4>Últimas notificações</h4>
+        <div id="mural-list" class="list"></div>
+      </div>
+
+      <div class="nav" style="margin-top:12px">
+        <button id="nav-home">🏠<small>Home</small></button>
+        <button id="nav-mural">📰<small>Mural</small></button>
+        <button id="nav-profile">👤<small>Perfil</small></button>
+        <button id="btn-new" style="background:var(--accent);color:#fff;border-radius:10px;padding:10px;border:none;cursor:pointer">➕</button>
+      </div>
+
+      <footer class="note">Protótipo PWA • Dados salvos localmente</footer>
+    </div>
+  </div>
+
+  <!-- overlay panel -->
+  <div class="panel-overlay" id="overlay">
+    <div class="panel" id="panel-content"></div>
+  </div>
+
+  <script>
+    // Simple PWA-ready app: data stored in localStorage (simulação)
+    const dbKeys = {anns:'oh_announcements_v1', del:'oh_deliveries_v1', res:'oh_reservations_v1'};
+    const overlay = document.getElementById('overlay'), panel = document.getElementById('panel-content');
+
+    // set theme
+    const themeToggle = document.getElementById('theme-toggle');
+    const savedTheme = localStorage.getItem('oh_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    themeToggle.innerText = savedTheme === 'dark' ? '☀️' : '🌙';
+    themeToggle.onclick = ()=>{
+      const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', cur);
+      themeToggle.innerText = cur === 'dark' ? '☀️' : '🌙';
+      localStorage.setItem('oh_theme', cur);
+    }
+
+    // clock
+    function nowTime(){const d=new Date();return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});}
+    document.getElementById('time').innerText = nowTime();
+    setInterval(()=>document.getElementById('time').innerText = nowTime(), 60*1000);
+
+    // init defaults
+    if(!localStorage.getItem(dbKeys.anns)){
+      const sample = [
+        {id:1,title:'Festa Junina',text:'No dia 21 teremos festa junina na quadra. Traga sua família!',img:null,ts:Date.now()-1000*60*60*24*2},
+        {id:2,title:'Leitura da Água',text:'Leitura da água será na próxima terça. Deixe o acesso liberado.',img:null,ts:Date.now()-1000*60*60*6}
+      ];
+      localStorage.setItem(dbKeys.anns, JSON.stringify(sample));
+    }
+    if(!localStorage.getItem(dbKeys.del)) localStorage.setItem(dbKeys.del, JSON.stringify([]));
+    if(!localStorage.getItem(dbKeys.res)) localStorage.setItem(dbKeys.res, JSON.stringify([]));
+
+    function load(key){try{return JSON.parse(localStorage.getItem(key))||[];}catch(e){return []}}
+    function save(key,val){localStorage.setItem(key,JSON.stringify(val))}
+
+    // render
+    function renderCards(){
+      const container = document.getElementById('mural-cards'); container.innerHTML='';
+      const anns = load(dbKeys.anns).slice(0,3);
+      anns.forEach(a=>{
+        const c = document.createElement('div'); c.className='card';
+        c.innerHTML = `<img src='${a.img||('https://picsum.photos/400/180?random='+a.id)}' alt='${a.title}'/><small>${a.title}</small>`;
+        c.onclick = ()=>openAnnouncement(a.id);
+        container.appendChild(c);
+      });
+    }
+    function renderMuralList(){
+      const list = document.getElementById('mural-list'); list.innerHTML='';
+      const anns = load(dbKeys.anns).sort((a,b)=>b.ts-a.ts);
+      if(!anns.length){list.innerHTML='<div class="empty">Nenhuma notificação</div>';return}
+      anns.forEach(a=>{
+        const it=document.createElement('div'); it.className='item';
+        it.innerHTML = `<strong>${a.title}</strong><div class='small'>${new Date(a.ts).toLocaleString()}</div><p>${a.text}</p><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' onclick='openAnnouncement(${a.id})'>Ver</button><button class='toggle' onclick='deleteAnnouncement(${a.id})'>Remover</button></div>`;
+        list.appendChild(it);
+      });
+    }
+
+    // panel helpers
+    function openPanel(html){ overlay.style.display='flex'; panel.innerHTML = html; overlay.onclick = (e)=>{ if(e.target===overlay) closeOverlay(); } }
+    function closeOverlay(){ overlay.style.display='none'; panel.innerHTML=''; overlay.onclick=null; }
+
+    // attach tile clicks
+    document.getElementById('t-announce').onclick = ()=>showAnnounceForm();
+    document.getElementById('btn-new').onclick = ()=>showAnnounceForm();
+    document.getElementById('t-deliveries').onclick = ()=>openPanelDeliveries();
+    document.getElementById('t-reservations').onclick = ()=>openPanelReservations();
+    document.getElementById('t-visitor').onclick = ()=>openPanelVisitor();
+    document.getElementById('nav-mural').onclick = ()=>openMuralFull();
+    document.getElementById('nav-profile').onclick = ()=>openProfile();
+    document.getElementById('nav-home').onclick = ()=>closeOverlay();
+
+    // announcements
+    function showAnnounceForm(){
+      openPanel(`<h2>Nova notificação</h2>
+        <label>Título</label><input id='a_title' placeholder='Assunto'>
+        <label>Texto</label><textarea id='a_text' rows=4 placeholder='Mensagem para o condomínio'></textarea>
+        <label>Imagem (URL, opcional)</label><input id='a_img' placeholder='https://...'>
+        <div style='display:flex;gap:8px;margin-top:12px'><button class='primary' id='pub'>Publicar</button><button class='toggle' id='canc'>Cancelar</button></div>`);
+      document.getElementById('canc').onclick = closeOverlay;
+      document.getElementById('pub').onclick = saveAnnouncement;
+    }
+    function saveAnnouncement(){
+      const title = document.getElementById('a_title').value.trim();
+      const text = document.getElementById('a_text').value.trim();
+      const img = document.getElementById('a_img').value.trim();
+      if(!title||!text){alert('Preencha título e texto');return}
+      const anns = load(dbKeys.anns);
+      const id = anns.length?Math.max(...anns.map(x=>x.id))+1:1;
+      anns.push({id,title,text,img:img||null,ts:Date.now()}); save(dbKeys.anns,anns);
+      renderCards(); renderMuralList(); closeOverlay(); alert('Notificação publicada (simulado).');
+    }
+    function openAnnouncement(id){
+      const a = load(dbKeys.anns).find(x=>x.id==id);
+      if(!a){alert('Não encontrado');return}
+      openPanel(`<h2>${a.title}</h2><div class='small'>${new Date(a.ts).toLocaleString()}</div><img src='${a.img||('https://picsum.photos/600/200?random='+a.id)}' style='width:100%;margin-top:8px;border-radius:8px'/><p style='margin-top:8px'>${a.text}</p><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' onclick='closeOverlay()'>Fechar</button><button class='toggle' onclick='deleteAnnouncement(${a.id})'>Remover</button></div>`);
+    }
+    function deleteAnnouncement(id){
+      if(!confirm('Remover notificação?')) return;
+      const anns = load(dbKeys.anns).filter(a=>a.id!==id); save(dbKeys.anns,anns);
+      renderCards(); renderMuralList(); closeOverlay();
+    }
+
+    // deliveries panel
+    function openPanelDeliveries(){
+      const deliveries = load(dbKeys.del);
+      openPanel(`<h2>Entregas</h2><div id='deliveries_list'>${deliveries.length?deliveries.map(d=>`<div class='item'><strong>${d.owner}</strong><div class='small'>${new Date(d.ts).toLocaleString()}</div><p>${d.info}</p></div>`).join(''):'<div class="empty">Nenhuma entrega registrada</div>'}</div><hr><h3>Adicionar entrega</h3><input id='d_owner' placeholder='Nome do destinatário'><input id='d_info' placeholder='Descrição / Código'><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' id='addD'>Adicionar</button><button class='toggle' id='closeD'>Fechar</button></div>`);
+      document.getElementById('closeD').onclick = closeOverlay;
+      document.getElementById('addD').onclick = addDelivery;
+    }
+    function addDelivery(){
+      const owner = document.getElementById('d_owner').value.trim();
+      const info = document.getElementById('d_info').value.trim();
+      if(!owner||!info){alert('Preencha todos os campos');return}
+      const del = load(dbKeys.del); del.push({id:Date.now(),owner,info,ts:Date.now()}); save(dbKeys.del,del);
+      openPanelDeliveries();
+    }
+
+    // reservations
+    function openPanelReservations(){
+      const res = load(dbKeys.res);
+      openPanel(`<h2>Reservas</h2><div id='res_list'>${res.length?res.map(r=>`<div class='item'><strong>${r.place}</strong><div class='small'>${new Date(r.date).toLocaleString()}</div><p>${r.owner}</p></div>`).join(''):'<div class="empty">Nenhuma reserva</div>'}</div><hr><h3>Nova reserva</h3><input id='r_place' placeholder='Local (ex: Salão de festas)'><input id='r_owner' placeholder='Nome'><input id='r_date' type='datetime-local'><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' id='addR'>Reservar</button><button class='toggle' id='closeR'>Fechar</button></div>`);
+      document.getElementById('closeR').onclick = closeOverlay;
+      document.getElementById('addR').onclick = addReservation;
+    }
+    function addReservation(){
+      const place = document.getElementById('r_place').value.trim();
+      const owner = document.getElementById('r_owner').value.trim();
+      const date = document.getElementById('r_date').value;
+      if(!place||!owner||!date){alert('Preencha todos os campos');return}
+      const res = load(dbKeys.res); res.push({id:Date.now(),place,owner,date,ts:Date.now()}); save(dbKeys.res,res);
+      openPanelReservations();
+    }
+
+    // visitor
+    function openPanelVisitor(){
+      openPanel(`<h2>Liberar Visitante</h2><input id='v_name' placeholder='Nome do visitante'><input id='v_plate' placeholder='Placa / Identificação (opcional)'><input id='v_unit' placeholder='Unidade visitada'><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' id='relV'>Liberar</button><button class='toggle' id='closeV'>Fechar</button></div><div class='small' style='margin-top:12px'>A liberação gera uma notificação para o condomínio (simulado).</div>`);
+      document.getElementById('closeV').onclick = closeOverlay;
+      document.getElementById('relV').onclick = releaseVisitor;
+    }
+    function releaseVisitor(){
+      const name = document.getElementById('v_name').value.trim();
+      const unit = document.getElementById('v_unit').value.trim();
+      if(!name||!unit){alert('Preencha nome e unidade');return}
+      const anns = load(dbKeys.anns);
+      const id = anns.length?Math.max(...anns.map(a=>a.id))+1:1;
+      const text = `Visitante ${name} liberado para a unidade ${unit}.`;
+      anns.push({id,title:'Visitante Liberado',text,img:null,ts:Date.now()}); save(dbKeys.anns,anns);
+      renderCards(); renderMuralList(); closeOverlay(); alert('Visitante liberado e notificação enviada (simulado).');
+    }
+
+    // full mural
+    function openMuralFull(){
+      const anns = load(dbKeys.anns).sort((a,b)=>b.ts-a.ts);
+      openPanel(`<h2>Mural</h2><div class='list'>${anns.map(a=>`<div class='item'><strong>${a.title}</strong><div class='small'>${new Date(a.ts).toLocaleString()}</div><p>${a.text}</p><div style='display:flex;gap:8px'><button class='primary' onclick='openAnnouncement(${a.id})'>Abrir</button></div></div>`).join('')}</div><div style='margin-top:12px'><button class='toggle' onclick='closeOverlay()'>Fechar</button></div>`);
+    }
+
+    // profile
+    function openProfile(){
+      openPanel(`<h2>Perfil</h2><div class='item'><strong>Heloisa Ferraz</strong><div class='small'>Condomínio</div><p>Responsável</p></div><div style='margin-top:12px'><button class='toggle' onclick='closeOverlay()'>Fechar</button></div>`);
+    }
+
+    // initial render
+    renderCards(); renderMuralList();
+
+    // PWA install prompt handling
+    let deferredPrompt;
+    const installBtn = document.getElementById('install-btn');
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.style.display = 'inline-block';
+    });
+    installBtn.addEventListener('click', async ()=>{
+      if(!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const choice = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      installBtn.style.display = 'none';
+    });
+
+    // register service worker
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('service-worker.js').then(()=>console.log('SW registrado')).catch(e=>console.warn('SW falhou', e));
+    }
+  </script>
+</body>
+</html>
+
