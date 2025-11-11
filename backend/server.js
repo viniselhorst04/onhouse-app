@@ -12,8 +12,14 @@ const app = express();
 const PORT = 3000; // A porta em que o servidor vai "ouvir"
 const JWT_SECRET = 'onhouse-chave-super-secreta-123'; // Uma senha para o servidor criar os tokens
 
+// Opções do CORS: Permite requisições apenas do seu site na Netlify
+const corsOptions = {
+  // SUBSTITUA PELA URL DO SEU SITE NA NETLIFY!
+  origin: 'https://seu-site.netlify.app' 
+};
+
 // 3. Configurações para o servidor entender as requisições
-app.use(cors()); // Habilita o CORS para permitir a comunicação com o frontend
+app.use(cors(corsOptions)); // Habilita o CORS com as opções específicas
 app.use(bodyParser.json()); // Faz o servidor entender o formato JSON
 
 // Middleware de Autenticação (Nosso "Guarda")
