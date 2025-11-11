@@ -8,13 +8,13 @@
   "theme_color": "#0f5f4f",
   "icons": [
     {
-      "src": "icon.svg",
-      "type": "image/svg+xml",
+      "src": "nova-logo.png",
+      "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "icon.svg",
-      "type": "image/svg+xml",
+      "src": "nova-logo.png",
+      "type": "image/png",
       "sizes": "512x512"
     }
   ]

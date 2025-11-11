@@ -1,9 +1,11 @@
 const CACHE_NAME = 'onhouse-cache-v1';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon.svg',
+  './',
+  './index.html',
+  './manifest.json',
+  './nova-logo.png',
+  './natal.jpeg',
+  './leitura-agua.png',
   // se tiver outros assets (css, imagens), adicione aqui
 ];
 

@@ -19,10 +19,10 @@
     }
     *{box-sizing:border-box;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial}
     body{margin:0;background:var(--bg);color:var(--text);display:flex;justify-content:center;align-items:flex-start;padding:20px;min-height:100vh}
-    .device{width:380px;max-width:96vw;background:var(--card);border-radius:18px;box-shadow:0 18px 40px rgba(6,20,28,0.22);overflow:hidden;border:6px solid rgba(15,95,79,0.06)}
-    .screen{height:760px;padding:18px;display:flex;flex-direction:column}
+    .device{width:380px;max-width:calc(100vw - 40px);height:800px;max-height:95vh;background:var(--card);border-radius:18px;box-shadow:0 18px 40px rgba(6,20,28,0.22);overflow:hidden;border:6px solid rgba(15,95,79,0.06)}
+    .screen{height:100%;padding:18px;display:flex;flex-direction:column;overflow-y:auto}
     .top{display:flex;align-items:center;gap:12px}
-    .avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#cfeee6,#9fd7cc);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff}
+    .avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#cfeee6,#9fd7cc);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;object-fit:cover}
     .user h3{margin:0;font-size:15px}
     .user p{margin:0;color:var(--muted);font-size:12px}
     .clock{color:var(--muted);font-size:12px}
@@ -49,27 +49,54 @@
     .logo-inline{display:flex;align-items:center;gap:10px}
     .empty{color:var(--muted);text-align:center;padding:10px}
     footer.note{font-size:12px;color:var(--muted);text-align:center;padding:8px}
+
+    /* Estilos para o novo cabeçalho */
+    .app-header {
+      position: relative;
+      text-align: center;
+      padding: 10px 0;
+    }
+    .app-header .logo {
+      height: 50px; /* Altura maior para a logo */
+      object-fit: contain;
+    }
+
+    /* Estilos para a tela de login */
+    .login-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100%;
+      padding: 20px;
+    }
   </style>
 </head>
 <body>
   <div class="device" role="application" aria-label="OnHouse app">
-    <div class="screen" id="home-screen">
-      <div style="display:flex;align-items:center;">
-        <div class="logo-inline">
-          <img src="icon.svg" alt="OnHouse" style="width:42px;height:42px;border-radius:8px"/>
-          <div>
-            <div class="brand">OnHouse</div>
-            <div class="small">Gestão de Condomínio</div>
-          </div>
-        </div>
-        <div class="topbar-actions" style="margin-left:auto">
+    <!-- Tela de Login -->
+    <div class="screen" id="login-screen">
+      <!-- Novo cabeçalho com logo centralizada -->
+      <div class="app-header">
+        <img src="nova-logo.png" alt="OnHouse Logo" class="logo"/>
+        <div class="topbar-actions" style="position:absolute; top: 50%; right: 0; transform: translateY(-50%);">
           <button class="toggle" id="theme-toggle">🌙</button>
           <button class="toggle" id="install-btn" style="display:none">Instalar</button>
         </div>
       </div>
 
-      <div class="top" style="margin-top:12px">
-        <div class="avatar" id="avatar">HF</div>
+      <div class="login-container">
+        <h3 style="margin-bottom: 20px;">Acessar o sistema</h3>
+        <label>Usuário</label>
+        <input id="login-user" placeholder="admin" value="admin">
+        <label style="margin-top:10px">Senha</label>
+        <input id="login-pass" type="password" placeholder="1234" value="1234">
+        <button class="primary" id="login-btn" style="width:100%; margin-top:20px;">Entrar</button>
+      </div>
+    </div>
+    <div class="screen" id="home-screen" style="display:none;">
+      <div class="top" style="margin-top:0">
+        <div class="avatar" id="avatar"></div>
         <div class="user"><h3 id="username">Tainara</h3><p class="small">Condomínio</p></div>
         <div class="clock small" id="time">--:--</div>
       </div>
@@ -82,6 +109,7 @@
         <div class="tile" id="t-deliveries"><div class="icon">📦</div><div><strong>Entregas</strong><div class="small">Registrar chegada</div></div></div>
         <div class="tile" id="t-reservations"><div class="icon">📅</div><div><strong>Reservas</strong><div class="small">Salão, Quadra...</div></div></div>
         <div class="tile" id="t-announce"><div class="icon">📢</div><div><strong>Nova Notificação</strong><div class="small">Enviar para os moradores</div></div></div>
+        <div class="tile" id="t-users"><div class="icon">👨‍👩‍👧‍👦</div><div><strong>Gerenciar Usuários</strong><div class="small">Adicionar ou remover</div></div></div>
       </div>
 
       <div style="margin-top:14px">
@@ -106,191 +134,484 @@
   </div>
 
   <script>
-    // Simple PWA-ready app: data stored in localStorage (simulação)
-    const dbKeys = {anns:'oh_announcements_v1', del:'oh_deliveries_v1', res:'oh_reservations_v1'};
-    const overlay = document.getElementById('overlay'), panel = document.getElementById('panel-content');
+    // --- Global State & Constants ---
+      // IMPORTANTE: Substitua 'SEU_IP_AQUI' pelo endereço IPv4 do seu computador (ex: 192.168.0.15)
+    const API_URL = 'https://onhouse-backend.onrender.com/api'; // <-- SUBSTITUA PELA SUA URL DA RENDER
+    let appData = { announcements: [], deliveries: [], reservations: [] };
+    const overlay = document.getElementById('overlay');
+    const panel = document.getElementById('panel-content');
 
-    // set theme
-    const themeToggle = document.getElementById('theme-toggle');
-    const savedTheme = localStorage.getItem('oh_theme') || 'light';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    themeToggle.innerText = savedTheme === 'dark' ? '☀️' : '🌙';
-    themeToggle.onclick = ()=>{
-      const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', cur);
-      themeToggle.innerText = cur === 'dark' ? '☀️' : '🌙';
-      localStorage.setItem('oh_theme', cur);
-    }
+    // --- Toast Notification ---
+    function showToast(message, type = 'success', duration = 2000) {
+        const icon = type === 'success' ? '✅' : '❌';
+        const messageHTML = `
+            <div class="message-dialog">
+                <div style="font-size: 40px; margin-bottom: 10px;">${icon}</div>
+                <p>${message}</p>
+            </div>
+        `;
+        openPanel(messageHTML);
 
-    // clock
-    function nowTime(){const d=new Date();return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});}
-    document.getElementById('time').innerText = nowTime();
-    setInterval(()=>document.getElementById('time').innerText = nowTime(), 60*1000);
-
-    // init defaults
-    if(!localStorage.getItem(dbKeys.anns)){
-      const sample = [
-        {id:1,title:'Festa Junina',text:'No dia 21 teremos festa junina na quadra. Traga sua família!',img:null,ts:Date.now()-1000*60*60*24*2},
-        {id:2,title:'Leitura da Água',text:'Leitura da água será na próxima terça. Deixe o acesso liberado.',img:null,ts:Date.now()-1000*60*60*6}
-      ];
-      localStorage.setItem(dbKeys.anns, JSON.stringify(sample));
-    }
-    if(!localStorage.getItem(dbKeys.del)) localStorage.setItem(dbKeys.del, JSON.stringify([]));
-    if(!localStorage.getItem(dbKeys.res)) localStorage.setItem(dbKeys.res, JSON.stringify([]));
-
-    function load(key){try{return JSON.parse(localStorage.getItem(key))||[];}catch(e){return []}}
-    function save(key,val){localStorage.setItem(key,JSON.stringify(val))}
-
-    // render
-    function renderCards(){
-      const container = document.getElementById('mural-cards'); container.innerHTML='';
-      const anns = load(dbKeys.anns).slice(0,3);
-      anns.forEach(a=>{
-        const c = document.createElement('div'); c.className='card';
-        c.innerHTML = `<img src='${a.img||('https://picsum.photos/400/180?random='+a.id)}' alt='${a.title}'/><small>${a.title}</small>`;
-        c.onclick = ()=>openAnnouncement(a.id);
-        container.appendChild(c);
-      });
-    }
-    function renderMuralList(){
-      const list = document.getElementById('mural-list'); list.innerHTML='';
-      const anns = load(dbKeys.anns).sort((a,b)=>b.ts-a.ts);
-      if(!anns.length){list.innerHTML='<div class="empty">Nenhuma notificação</div>';return}
-      anns.forEach(a=>{
-        const it=document.createElement('div'); it.className='item';
-        it.innerHTML = `<strong>${a.title}</strong><div class='small'>${new Date(a.ts).toLocaleString()}</div><p>${a.text}</p><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' onclick='openAnnouncement(${a.id})'>Ver</button><button class='toggle' onclick='deleteAnnouncement(${a.id})'>Remover</button></div>`;
-        list.appendChild(it);
-      });
+        // Fecha o pop-up automaticamente após a duração especificada
+        setTimeout(() => {
+            // Verifica se o painel ainda está mostrando nossa mensagem antes de fechar
+            if (panel.innerHTML === messageHTML) {
+                closePanel();
+            }
+        }, duration);
     }
 
-    // panel helpers
-    function openPanel(html){ overlay.style.display='flex'; panel.innerHTML = html; overlay.onclick = (e)=>{ if(e.target===overlay) closeOverlay(); } }
-    function closeOverlay(){ overlay.style.display='none'; panel.innerHTML=''; overlay.onclick=null; }
-
-    // attach tile clicks
-    document.getElementById('t-announce').onclick = ()=>showAnnounceForm();
-    document.getElementById('btn-new').onclick = ()=>showAnnounceForm();
-    document.getElementById('t-deliveries').onclick = ()=>openPanelDeliveries();
-    document.getElementById('t-reservations').onclick = ()=>openPanelReservations();
-    document.getElementById('t-visitor').onclick = ()=>openPanelVisitor();
-    document.getElementById('nav-mural').onclick = ()=>openMuralFull();
-    document.getElementById('nav-profile').onclick = ()=>openProfile();
-    document.getElementById('nav-home').onclick = ()=>closeOverlay();
-
-    // announcements
-    function showAnnounceForm(){
-      openPanel(`<h2>Nova notificação</h2>
-        <label>Título</label><input id='a_title' placeholder='Assunto'>
-        <label>Texto</label><textarea id='a_text' rows=4 placeholder='Mensagem para o condomínio'></textarea>
-        <label>Imagem (URL, opcional)</label><input id='a_img' placeholder='https://...'>
-        <div style='display:flex;gap:8px;margin-top:12px'><button class='primary' id='pub'>Publicar</button><button class='toggle' id='canc'>Cancelar</button></div>`);
-      document.getElementById('canc').onclick = closeOverlay;
-      document.getElementById('pub').onclick = saveAnnouncement;
-    }
-    function saveAnnouncement(){
-      const title = document.getElementById('a_title').value.trim();
-      const text = document.getElementById('a_text').value.trim();
-      const img = document.getElementById('a_img').value.trim();
-      if(!title||!text){alert('Preencha título e texto');return}
-      const anns = load(dbKeys.anns);
-      const id = anns.length?Math.max(...anns.map(x=>x.id))+1:1;
-      anns.push({id,title,text,img:img||null,ts:Date.now()}); save(dbKeys.anns,anns);
-      renderCards(); renderMuralList(); closeOverlay(); alert('Notificação publicada (simulado).');
-    }
-    function openAnnouncement(id){
-      const a = load(dbKeys.anns).find(x=>x.id==id);
-      if(!a){alert('Não encontrado');return}
-      openPanel(`<h2>${a.title}</h2><div class='small'>${new Date(a.ts).toLocaleString()}</div><img src='${a.img||('https://picsum.photos/600/200?random='+a.id)}' style='width:100%;margin-top:8px;border-radius:8px'/><p style='margin-top:8px'>${a.text}</p><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' onclick='closeOverlay()'>Fechar</button><button class='toggle' onclick='deleteAnnouncement(${a.id})'>Remover</button></div>`);
-    }
-    function deleteAnnouncement(id){
-      if(!confirm('Remover notificação?')) return;
-      const anns = load(dbKeys.anns).filter(a=>a.id!==id); save(dbKeys.anns,anns);
-      renderCards(); renderMuralList(); closeOverlay();
+    // --- Custom Confirmation Dialog ---
+    function showConfirm(message, onConfirm) {
+        const confirmHTML = `
+            <div class="confirm-dialog">
+                <p>${message}</p>
+                <div style="display:flex; justify-content:center; gap:12px;">
+                    <button class="primary" id="confirm-btn">Confirmar</button>
+                    <button class="toggle" onclick="closePanel()">Cancelar</button>
+                </div>
+            </div>
+        `;
+        openPanel(confirmHTML);
+        document.getElementById('confirm-btn').onclick = () => {
+            onConfirm();
+        };
     }
 
-    // deliveries panel
-    function openPanelDeliveries(){
-      const deliveries = load(dbKeys.del);
-      openPanel(`<h2>Entregas</h2><div id='deliveries_list'>${deliveries.length?deliveries.map(d=>`<div class='item'><strong>${d.owner}</strong><div class='small'>${new Date(d.ts).toLocaleString()}</div><p>${d.info}</p></div>`).join(''):'<div class="empty">Nenhuma entrega registrada</div>'}</div><hr><h3>Adicionar entrega</h3><input id='d_owner' placeholder='Nome do destinatário'><input id='d_info' placeholder='Descrição / Código'><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' id='addD'>Adicionar</button><button class='toggle' id='closeD'>Fechar</button></div>`);
-      document.getElementById('closeD').onclick = closeOverlay;
-      document.getElementById('addD').onclick = addDelivery;
-    }
-    function addDelivery(){
-      const owner = document.getElementById('d_owner').value.trim();
-      const info = document.getElementById('d_info').value.trim();
-      if(!owner||!info){alert('Preencha todos os campos');return}
-      const del = load(dbKeys.del); del.push({id:Date.now(),owner,info,ts:Date.now()}); save(dbKeys.del,del);
-      openPanelDeliveries();
-    }
-
-    // reservations
-    function openPanelReservations(){
-      const res = load(dbKeys.res);
-      openPanel(`<h2>Reservas</h2><div id='res_list'>${res.length?res.map(r=>`<div class='item'><strong>${r.place}</strong><div class='small'>${new Date(r.date).toLocaleString()}</div><p>${r.owner}</p></div>`).join(''):'<div class="empty">Nenhuma reserva</div>'}</div><hr><h3>Nova reserva</h3><input id='r_place' placeholder='Local (ex: Salão de festas)'><input id='r_owner' placeholder='Nome'><input id='r_date' type='datetime-local'><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' id='addR'>Reservar</button><button class='toggle' id='closeR'>Fechar</button></div>`);
-      document.getElementById('closeR').onclick = closeOverlay;
-      document.getElementById('addR').onclick = addReservation;
-    }
-    function addReservation(){
-      const place = document.getElementById('r_place').value.trim();
-      const owner = document.getElementById('r_owner').value.trim();
-      const date = document.getElementById('r_date').value;
-      if(!place||!owner||!date){alert('Preencha todos os campos');return}
-      const res = load(dbKeys.res); res.push({id:Date.now(),place,owner,date,ts:Date.now()}); save(dbKeys.res,res);
-      openPanelReservations();
+    // --- API Helper ---
+    async function fetchWithAuth(endpoint, options = {}) {
+        const token = sessionStorage.getItem('authToken');
+        if (!token) {
+            throw new Error('Sessão expirada. Faça login novamente.');
+        }
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            ...options.headers,
+        };
+        const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+        if (!response.ok) {
+            const errorResult = await response.json().catch(() => ({ message: 'Ocorreu um erro desconhecido.' }));
+            throw new Error(errorResult.message || `A requisição falhou com o status ${response.status}`);
+        }
+        // Handle empty responses for DELETE, etc.
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            return response.json();
+        }
+        return { success: true };
     }
 
-    // visitor
-    function openPanelVisitor(){
-      openPanel(`<h2>Liberar Visitante</h2><input id='v_name' placeholder='Nome do visitante'><input id='v_plate' placeholder='Placa / Identificação (opcional)'><input id='v_unit' placeholder='Unidade visitada'><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' id='relV'>Liberar</button><button class='toggle' id='closeV'>Fechar</button></div><div class='small' style='margin-top:12px'>A liberação gera uma notificação para o condomínio (simulado).</div>`);
-      document.getElementById('closeV').onclick = closeOverlay;
-      document.getElementById('relV').onclick = releaseVisitor;
-    }
-    function releaseVisitor(){
-      const name = document.getElementById('v_name').value.trim();
-      const unit = document.getElementById('v_unit').value.trim();
-      if(!name||!unit){alert('Preencha nome e unidade');return}
-      const anns = load(dbKeys.anns);
-      const id = anns.length?Math.max(...anns.map(a=>a.id))+1:1;
-      const text = `Visitante ${name} liberado para a unidade ${unit}.`;
-      anns.push({id,title:'Visitante Liberado',text,img:null,ts:Date.now()}); save(dbKeys.anns,anns);
-      renderCards(); renderMuralList(); closeOverlay(); alert('Visitante liberado e notificação enviada (simulado).');
+    // --- Auth & Data Loading ---
+    async function handleLogin() {
+        const loginBtn = document.getElementById('login-btn');
+        const userKey = document.getElementById('login-user').value.toLowerCase();
+        const pass = document.getElementById('login-pass').value;
+
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Entrando...';
+
+        try {
+            const response = await fetch(`${API_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: userKey, password: pass }),
+            });
+            if (!response.ok) {
+                const errorResult = await response.json();
+                throw new Error(errorResult.message || 'Usuário ou senha inválidos!');
+            }
+            const result = await response.json();
+            sessionStorage.setItem('authToken', result.token);
+            sessionStorage.setItem('loggedInUser', JSON.stringify(result.user));
+            await checkLoginState();
+        } catch (error) {
+            console.error('Erro ao tentar fazer login:', error);
+            showToast(error.message, 'error');
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Entrar';
+        }
     }
 
-    // full mural
-    function openMuralFull(){
-      const anns = load(dbKeys.anns).sort((a,b)=>b.ts-a.ts);
-      openPanel(`<h2>Mural</h2><div class='list'>${anns.map(a=>`<div class='item'><strong>${a.title}</strong><div class='small'>${new Date(a.ts).toLocaleString()}</div><p>${a.text}</p><div style='display:flex;gap:8px'><button class='primary' onclick='openAnnouncement(${a.id})'>Abrir</button></div></div>`).join('')}</div><div style='margin-top:12px'><button class='toggle' onclick='closeOverlay()'>Fechar</button></div>`);
+    function handleLogout() {
+        sessionStorage.removeItem('loggedInUser');
+        sessionStorage.removeItem('authToken');
+        location.reload();
     }
 
-    // profile
-    function openProfile(){
-      openPanel(`<h2>Perfil</h2><div class='item'><strong>Heloisa Ferraz</strong><div class='small'>Condomínio</div><p>Responsável</p></div><div style='margin-top:12px'><button class='toggle' onclick='closeOverlay()'>Fechar</button></div>`);
+    async function loadInitialData(currentUser) {
+        try {
+            const [announcements, deliveries, reservations] = await Promise.all([
+                fetchWithAuth('/announcements'),
+                fetchWithAuth('/deliveries'),
+                fetchWithAuth('/reservations'),
+            ]);
+            appData.announcements = announcements;
+            appData.deliveries = deliveries;
+            appData.reservations = reservations;
+            console.log('Dados iniciais carregados do servidor.');
+            renderUIForUser(currentUser);
+        } catch (error) {
+            console.error('Falha ao carregar dados do servidor:', error);
+            showToast(error.message, 'error');
+            if (error.message.includes('Sessão expirada')) {
+                handleLogout();
+            }
+        }
     }
 
-    // initial render
-    renderCards(); renderMuralList();
-
-    // PWA install prompt handling
-    let deferredPrompt;
-    const installBtn = document.getElementById('install-btn');
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      installBtn.style.display = 'inline-block';
-    });
-    installBtn.addEventListener('click', async ()=>{
-      if(!deferredPrompt) return;
-      deferredPrompt.prompt();
-      const choice = await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      installBtn.style.display = 'none';
-    });
-
-    // register service worker
-    if('serviceWorker' in navigator){
-      navigator.serviceWorker.register('service-worker.js').then(()=>console.log('SW registrado')).catch(e=>console.warn('SW falhou', e));
+    async function checkLoginState() {
+        const loggedInUserJSON = sessionStorage.getItem('loggedInUser');
+        if (loggedInUserJSON) {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('home-screen').style.display = 'flex';
+            const currentUser = JSON.parse(loggedInUserJSON);
+            await loadInitialData(currentUser);
+        } else {
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('home-screen').style.display = 'none';
+        }
     }
+
+    // --- UI Rendering ---
+    function renderUIForUser(user) {
+        if (!user) { handleLogout(); return; }
+        renderUserProfile(user);
+        renderCards();
+        renderMuralList();
+
+        const isAdmin = user.role === 'admin';
+        document.getElementById('t-announce').style.display = isAdmin ? 'flex' : 'none';
+        document.getElementById('t-users').style.display = isAdmin ? 'flex' : 'none';
+        document.getElementById('btn-new').style.display = isAdmin ? 'block' : 'none';
+        document.getElementById('t-visitor').style.display = user.role === 'condomino' ? 'flex' : 'none';
+    }
+
+    function renderUserProfile(profile) {
+        document.getElementById('username').innerText = profile.name;
+        const avatarEl = document.getElementById('avatar');
+        if (profile.avatar) {
+            avatarEl.innerHTML = `<img src="${profile.avatar}" class="avatar" alt="Foto de perfil" style="width:100%;height:100%">`;
+        } else {
+            avatarEl.innerHTML = '';
+            avatarEl.innerText = profile.initials;
+        }
+    }
+
+    function renderCards() {
+        const container = document.getElementById('mural-cards');
+        container.innerHTML = '';
+        const anns = appData.announcements.filter(a => a.title !== 'Liberação de Visitante').slice(0, 3);
+        anns.forEach(a => {
+            const c = document.createElement('div');
+            c.className = 'card';
+            c.innerHTML = `<img src='${a.img || `https://picsum.photos/400/180?random=${a.id}`}' alt='${a.title}'/><small>${a.title}</small>`;
+            c.onclick = () => openAnnouncement(a.id);
+            container.appendChild(c);
+        });
+    }
+
+    function renderMuralList() {
+        const list = document.getElementById('mural-list');
+        list.innerHTML = '';
+        const anns = appData.announcements.slice(0, 5);
+        if (!anns.length) {
+            list.innerHTML = '<div class="empty">Nenhuma notificação</div>';
+            return;
+        }
+        anns.forEach(a => {
+            const it = document.createElement('div');
+            it.className = 'item';
+            it.innerHTML = `<strong>${a.title}</strong><div class='small'>${new Date(a.ts).toLocaleString()}</div>`;
+            it.onclick = () => openAnnouncement(a.id);
+            list.appendChild(it);
+        });
+    }
+
+    // --- Panel Logic ---
+    function openPanel(html) {
+        overlay.style.display = 'flex';
+        panel.innerHTML = html;
+        overlay.onclick = (e) => { if (e.target === overlay) closePanel(); };
+    }
+
+    function closePanel() {
+        overlay.style.display = 'none';
+        panel.innerHTML = '';
+        overlay.onclick = null;
+    }
+
+    // --- Announcements ---
+    function showAnnounceForm() {
+        openPanel(`<h2>Nova notificação</h2>
+          <label>Título</label><input id='a_title' placeholder='Assunto'>
+          <label>Texto</label><textarea id='a_text' rows=4 placeholder='Mensagem para o condomínio'></textarea>
+          <label>Imagem (URL, opcional)</label><input id='a_img' placeholder='https://...'>
+          <div style='display:flex;gap:8px;margin-top:12px'><button class='primary' id='pub'>Publicar</button><button class='toggle' id='canc'>Cancelar</button></div>`);
+        document.getElementById('canc').onclick = closePanel;
+        document.getElementById('pub').onclick = handleSaveAnnouncement;
+    }
+
+    async function handleSaveAnnouncement() {
+        const title = document.getElementById('a_title').value.trim();
+        const text = document.getElementById('a_text').value.trim();
+        const img = document.getElementById('a_img').value.trim();
+        if (!title || !text) { showToast('Preencha título e texto', 'error'); return; }
+
+        try {
+            const newAnnouncement = await fetchWithAuth('/announcements', { method: 'POST', body: JSON.stringify({ title, text, img }) });
+            appData.announcements.unshift(newAnnouncement);
+            renderCards();
+            renderMuralList();
+            closePanel();
+            showToast('Notificação publicada com sucesso!');
+        } catch (error) {
+            console.error('Erro ao salvar notificação:', error);
+            showToast(error.message, 'error');
+        }
+    }
+
+    function openAnnouncement(id) {
+        const a = appData.announcements.find(x => x.id == id);
+        if (!a) { alert('Não encontrado'); return; }
+
+        const currentUser = JSON.parse(sessionStorage.getItem('loggedInUser'));
+        const deleteButtonHTML = currentUser && currentUser.role === 'admin'
+            ? `<button class='toggle' onclick='handleDeleteAnnouncement(${a.id})'>Remover</button>`
+            : '';
+
+        openPanel(`<h2>${a.title}</h2><div class='small'>${new Date(a.ts).toLocaleString()}</div><img src='${a.img || `https://picsum.photos/600/200?random=${a.id}`}' style='width:100%;margin-top:8px;border-radius:8px'/><p style='margin-top:8px'>${a.text}</p><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' onclick='closePanel()'>Fechar</button>${deleteButtonHTML}</div>`);
+    }
+
+    async function handleDeleteAnnouncement(id) {
+        const deleteAction = async () => {
+            try {
+                await fetchWithAuth(`/announcements/${id}`, { method: 'DELETE' });
+                appData.announcements = appData.announcements.filter(a => a.id !== id);
+                renderCards();
+                renderMuralList();
+                closePanel();
+                showToast('Notificação removida com sucesso!');
+            } catch (error) {
+                console.error('Erro ao remover notificação:', error);
+                showToast(error.message, 'error');
+            }
+        };
+
+        showConfirm('Tem certeza que deseja remover esta notificação?', deleteAction);
+    }
+
+    // --- Deliveries ---
+    function openPanelDeliveries() {
+        const currentUser = JSON.parse(sessionStorage.getItem('loggedInUser'));
+        const renderDeliveryItem = (d) => `<div class='item'><strong>${d.owner}</strong><div class='small'>${new Date(d.ts).toLocaleString()}</div><p>${d.info}</p></div>`;
+
+        const adminFormHTML = currentUser.role === 'admin' ? `
+          <hr><h3>Registrar entrega</h3>
+          <input id='d_owner' placeholder='Nome do destinatário'><input id='d_info' placeholder='Descrição / Código'>
+          <div style='display:flex;gap:8px;margin-top:8px'><button class='primary' id='addD'>Registrar</button></div>`
+            : `<div style='margin-top:12px;'><button class='toggle' onclick='closePanel()'>Fechar</button></div>`;
+
+        openPanel(`<h2>Entregas</h2>
+          <div id='deliveries_list'>${appData.deliveries.length ? appData.deliveries.map(renderDeliveryItem).join('') : '<div class="empty">Nenhuma entrega registrada</div>'}</div>
+          ${adminFormHTML}`);
+
+        if (currentUser.role === 'admin') {
+            document.getElementById('addD').onclick = handleAddDelivery;
+        }
+    }
+
+    async function handleAddDelivery() {
+        const owner = document.getElementById('d_owner').value.trim();
+        const info = document.getElementById('d_info').value.trim();
+        if (!owner || !info) { showToast('Preencha todos os campos', 'error'); return; }
+
+        try {
+            const newDelivery = await fetchWithAuth('/deliveries', { method: 'POST', body: JSON.stringify({ owner, info }) });
+            appData.deliveries.unshift(newDelivery);
+            openPanelDeliveries();
+            showToast('Entrega registrada com sucesso!');
+        } catch (error) {
+            console.error('Erro ao registrar entrega:', error);
+            showToast(error.message, 'error');
+        }
+    }
+
+    // --- Reservations ---
+    function openPanelReservations() {
+        const currentUser = JSON.parse(sessionStorage.getItem('loggedInUser'));
+        const renderReservationItem = (r) => `<div class='item'><strong>${r.place}</strong><div class='small'>${new Date(r.date).toLocaleString()}</div><p>Reservado por: ${r.owner}</p></div>`;
+
+        openPanel(`<h2>Reservas</h2><div id='res_list'>${appData.reservations.length ? appData.reservations.map(renderReservationItem).join('') : '<div class="empty">Nenhuma reserva</div>'}</div><hr><h3>Nova reserva</h3><input id='r_place' placeholder='Local (ex: Salão de festas)'><input id='r_owner' value='${currentUser.name}' placeholder='Nome'><input id='r_date' type='datetime-local'><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' id='addR'>Reservar</button><button class='toggle' onclick='closePanel()'>Fechar</button></div>`);
+        document.getElementById('addR').onclick = handleAddReservation;
+    }
+
+    async function handleAddReservation() {
+        const place = document.getElementById('r_place').value.trim();
+        const owner = document.getElementById('r_owner').value.trim();
+        const date = document.getElementById('r_date').value;
+        if (!place || !owner || !date) { showToast('Preencha todos os campos', 'error'); return; }
+
+        try {
+            const newReservation = await fetchWithAuth('/reservations', { method: 'POST', body: JSON.stringify({ place, owner, date }) });
+            appData.reservations.push(newReservation);
+            appData.reservations.sort((a, b) => new Date(a.date) - new Date(b.date));
+            openPanelReservations();
+            showToast('Reserva criada com sucesso!');
+        } catch (error) {
+            console.error('Erro ao criar reserva:', error);
+            showToast(error.message, 'error');
+        }
+    }
+
+    // --- Visitor ---
+    function openPanelVisitor() {
+        openPanel(`<h2>Liberar Visitante</h2><input id='v_name' placeholder='Nome do visitante'><input id='v_plate' placeholder='Placa / Identificação (opcional)'><input id='v_unit' placeholder='Unidade visitada'><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' id='relV'>Liberar</button><button class='toggle' onclick='closePanel()'>Fechar</button></div><div class='small' style='margin-top:12px'>A liberação gera uma notificação para o condomínio.</div>`);
+        document.getElementById('relV').onclick = handleReleaseVisitor;
+    }
+
+    async function handleReleaseVisitor() {
+        const name = document.getElementById('v_name').value.trim();
+        const unit = document.getElementById('v_unit').value.trim();
+        if (!name || !unit) { showToast('Preencha nome e unidade', 'error'); return; }
+
+        try {
+            const newAnnouncement = await fetchWithAuth('/visitor-releases', { method: 'POST', body: JSON.stringify({ name, unit }) });
+            appData.announcements.unshift(newAnnouncement);
+            renderCards();
+            renderMuralList();
+            closePanel();
+            showToast('Visitante liberado e notificação enviada!');
+        } catch (error) {
+            console.error('Erro ao liberar visitante:', error);
+            showToast(error.message, 'error');
+        }
+    }
+
+    // --- Users (Admin) ---
+    async function openPanelUsers() {
+        try {
+            const users = await fetchWithAuth('/users');
+            const renderUserItem = (u) => `<div class='item'><strong>${u.name}</strong><div class='small'>@${u.username} - ${u.role}</div></div>`;
+
+            openPanel(`<h2>Gerenciar Usuários</h2>
+                <div id='users_list'>${users.length ? users.map(renderUserItem).join('') : '<div class="empty">Nenhum usuário encontrado.</div>'}</div>
+                <hr><h3>Novo Usuário</h3>
+                <input id='u_name' placeholder='Nome completo'>
+                <input id='u_username' placeholder='Nome de usuário (para login)'>
+                <input id='u_password' type='password' placeholder='Senha temporária'>
+                <select id='u_role' style='width:100%; padding:10px; border-radius:8px; border:1px solid #e6eceb; margin-top:8px;'>
+                    <option value='condomino'>Morador (condomino)</option>
+                    <option value='admin'>Administrador</option>
+                </select>
+                <div style='display:flex;gap:8px;margin-top:8px'>
+                    <button class='primary' id='addUserBtn'>Criar Usuário</button>
+                    <button class='toggle' onclick='closePanel()'>Fechar</button>
+                </div>
+            `);
+
+            document.getElementById('addUserBtn').onclick = handleCreateUser;
+        } catch (error) {
+            console.error('Erro ao buscar usuários:', error);
+            showToast(error.message, 'error');
+            closePanel();
+        }
+    }
+
+    async function handleCreateUser() {
+        const name = document.getElementById('u_name').value.trim();
+        const username = document.getElementById('u_username').value.trim().toLowerCase();
+        const password = document.getElementById('u_password').value.trim();
+        const role = document.getElementById('u_role').value;
+
+        if (!name || !username || !password) { showToast('Preencha todos os campos para criar o usuário.', 'error'); return; }
+
+        try {
+            await fetchWithAuth('/users', { method: 'POST', body: JSON.stringify({ name, username, password, role }) });
+            showToast('Usuário criado com sucesso!');
+            openPanelUsers(); // Recarrega o painel para mostrar o novo usuário
+        } catch (error) {
+            console.error('Erro ao criar usuário:', error);
+            showToast(error.message, 'error');
+        }
+    }
+
+    // --- Full Mural & Profile ---
+    function openMuralFull() {
+        openPanel(`<h2>Mural</h2><div class='list'>${appData.announcements.map(a => `<div class='item'><strong>${a.title}</strong><div class='small'>${new Date(a.ts).toLocaleString()}</div><p>${a.text}</p><div style='display:flex;gap:8px'><button class='primary' onclick='openAnnouncement(${a.id})'>Abrir</button></div></div>`).join('')}</div><div style='margin-top:12px'><button class='toggle' onclick='closePanel()'>Fechar</button></div>`);
+    }
+
+    function openProfile() {
+        const profile = JSON.parse(sessionStorage.getItem('loggedInUser'));
+        const avatarHTML = profile.avatar
+            ? `<img src="${profile.avatar}" class="avatar" style="width:60px;height:60px" alt="Foto de perfil">`
+            : `<div class="avatar" style="width:60px;height:60px;font-size:24px">${profile.initials}</div>`;
+
+        openPanel(`<h2>Perfil</h2>
+          <div class='item' style="display:flex; align-items:center; gap: 12px;">${avatarHTML}<div><strong>${profile.name}</strong><div class='small'>${profile.role}</div></div></div>
+          <div style='margin-top:12px; display:flex; gap: 8px;'><button class='toggle' onclick='handleLogout()'>Sair</button><button class='toggle' onclick='closePanel()'>Fechar</button></div>
+          <p class="small" style="margin-top: 12px;">Funcionalidades de alterar nome/foto serão implementadas.</p>`);
+    }
+
+    // --- Initialization ---
+    function initialize() {
+        // Event Listeners
+        document.getElementById('login-btn').onclick = handleLogin;
+        document.getElementById('t-announce').onclick = showAnnounceForm;
+        document.getElementById('btn-new').onclick = showAnnounceForm;
+        document.getElementById('t-deliveries').onclick = openPanelDeliveries;
+        document.getElementById('t-reservations').onclick = openPanelReservations;
+        document.getElementById('t-visitor').onclick = openPanelVisitor;
+        document.getElementById('t-users').onclick = openPanelUsers;
+        document.getElementById('nav-mural').onclick = openMuralFull;
+        document.getElementById('nav-profile').onclick = openProfile;
+        document.getElementById('nav-home').onclick = () => { if (overlay.style.display !== 'none') closePanel(); };
+
+        // Clock
+        const timeEl = document.getElementById('time');
+        const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        timeEl.innerText = nowTime();
+        setInterval(() => timeEl.innerText = nowTime(), 60000);
+
+        // Theme
+        const themeToggle = document.getElementById('theme-toggle');
+        const savedTheme = localStorage.getItem('oh_theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        themeToggle.innerText = savedTheme === 'dark' ? '☀️' : '🌙';
+        themeToggle.onclick = () => {
+            const newTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            themeToggle.innerText = newTheme === 'dark' ? '☀️' : '🌙';
+            localStorage.setItem('oh_theme', newTheme);
+        };
+
+        // PWA Install
+        let deferredPrompt;
+        const installBtn = document.getElementById('install-btn');
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'inline-block';
+        });
+        installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            await deferredPrompt.userChoice;
+            deferredPrompt = null;
+            installBtn.style.display = 'none';
+        });
+
+        // Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js').then(() => console.log('SW registrado')).catch(e => console.warn('SW falhou', e));
+        }
+
+        // Initial Check
+        checkLoginState();
+    }
+
+    document.addEventListener('DOMContentLoaded', initialize);
   </script>
 </body>
 </html>
-
