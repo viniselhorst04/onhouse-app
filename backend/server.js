@@ -14,8 +14,15 @@ const JWT_SECRET = 'onhouse-chave-super-secreta-123'; // Uma senha para o servid
 
 // Opções do CORS: Permite requisições apenas do seu site na Netlify
 const corsOptions = {
-  // SUBSTITUA PELA URL DO SEU SITE NA NETLIFY!
-  origin: 'https://onhousebr.netlify.app' 
+  origin: function (origin, callback) {
+    // Permite requisições da sua URL da Netlify (com ou sem a barra no final)
+    const allowedOrigins = ['https://onhousebr.netlify.app'];
+    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
+      callback(null, true);
+    } else {
+      callback(new Error('Origem não permitida pelo CORS'));
+    }
+  }
 };
 
 // 3. Configurações para o servidor entender as requisições
