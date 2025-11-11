@@ -42,24 +42,23 @@ function verifyToken(req, res, next) {
 
 // 5. CRIAÇÃO DA ROTA DE LOGIN
 // Este é o "endereço" que o seu frontend vai chamar: http://localhost:3000/api/login
-app.post('/api/login', (req, res) => { // Não precisa ser async se usarmos callbacks
+app.post('/api/login', async (req, res) => {
   // Pega o 'username' e 'password' que o frontend enviou no corpo da requisição
   const { username, password } = req.body;
   console.log(`[API] Recebida tentativa de login para o usuário: ${username}`);
 
-  const sql = "SELECT * FROM users WHERE username = ? AND password = ?";
-  db.get(sql, [username, password], (err, user) => {
-    if (err) {
-      res.status(500).json({ "message": err.message });
-      return;
-    }
+  const sql = "SELECT * FROM users WHERE username = $1 AND password = $2";
+  try {
+    const { rows } = await db.query(sql, [username, password]);
+    const user = rows[0];
+
     if (user) {
       // Se o login estiver correto...
       const userData = { name: user.name, role: user.role, avatar: user.avatar, initials: user.initials };
       const token = jwt.sign(
         { username: user.username, name: user.name, role: user.role },
         JWT_SECRET,
-        { expiresIn: '1h' }
+        { expiresIn: '24h' } // Aumentei a expiração
       );
       res.status(200).json({
         message: 'Login bem-sucedido!',
@@ -69,25 +68,26 @@ app.post('/api/login', (req, res) => { // Não precisa ser async se usarmos call
     } else {
       res.status(401).json({ message: 'Usuário ou senha inválidos.' });
     }
-  });
+  } catch (err) {
+    res.status(500).json({ "message": err.message });
+  }
 });
 
 // ROTA PARA BUSCAR NOTIFICAÇÕES
-app.get('/api/announcements', (req, res) => {
+app.get('/api/announcements', async (req, res) => {
   console.log(`[API] Enviando lista de notificações.`);
   const sql = "SELECT * FROM announcements ORDER BY ts DESC";
-  db.all(sql, [], (err, rows) => {
-    if (err) {
-      res.status(500).json({ "error": err.message });
-      return;
-    }
+  try {
+    const { rows } = await db.query(sql, []);
     res.status(200).json(rows);
-  });
+  } catch (err) {
+    res.status(500).json({ "error": err.message });
+  }
 });
 
 // ROTA PARA CRIAR UMA NOVA NOTIFICAÇÃO (PROTEGIDA)
 // Usamos o `verifyToken` antes da lógica da rota. Só passa se o token for válido.
-app.post('/api/announcements', verifyToken, (req, res) => {
+app.post('/api/announcements', verifyToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Acesso negado. Apenas administradores podem postar.' });
   }
@@ -98,41 +98,39 @@ app.post('/api/announcements', verifyToken, (req, res) => {
     return res.status(400).json({ message: 'Título e texto são obrigatórios.' });
   }
 
-  const sql = `INSERT INTO announcements (title, text, img, ts) VALUES (?, ?, ?, ?)`;
+  const sql = `INSERT INTO announcements (title, text, img, ts) VALUES ($1, $2, $3, $4) RETURNING *`;
   const params = [title, text, img || null, Date.now()];
-  db.run(sql, params, function (err) {
-    if (err) {
-      res.status(500).json({ "error": err.message });
-      return;
-    }
-    res.status(201).json({ id: this.lastID, title, text, img: img || null, ts: params[3] });
-  });
+  try {
+    const { rows } = await db.query(sql, params);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ "error": err.message });
+  }
 });
 
 // ROTA PARA DELETAR UMA NOTIFICAÇÃO (PROTEGIDA)
-app.delete('/api/announcements/:id', verifyToken, (req, res) => {
+app.delete('/api/announcements/:id', verifyToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Acesso negado.' });
   }
 
   console.log(`[API] Admin ${req.user.username} está deletando a notificação ID: ${req.params.id}`);
-  const sql = 'DELETE FROM announcements WHERE id = ?';
-  db.run(sql, req.params.id, function (err) {
-    if (err) {
-      res.status(500).json({ "error": err.message });
-      return;
-    }
-    if (this.changes === 0) {
+  const sql = 'DELETE FROM announcements WHERE id = $1';
+  try {
+    const result = await db.query(sql, [req.params.id]);
+    if (result.rowCount === 0) {
       return res.status(404).json({ message: 'Notificação não encontrada.' });
     }
     res.status(200).json({ message: 'Notificação removida com sucesso.' });
-  });
+  } catch (err) {
+    res.status(500).json({ "error": err.message });
+  }
 });
 
 // --- ROTAS DE ENTREGAS ---
 
 // ROTA PARA BUSCAR ENTREGAS (PROTEGIDA)
-app.get('/api/deliveries', verifyToken, (req, res) => {
+app.get('/api/deliveries', verifyToken, async (req, res) => {
   console.log(`[API] Usuário ${req.user.username} está buscando a lista de entregas.`);
   
   let sql = "SELECT * FROM deliveries ORDER BY ts DESC";
@@ -140,22 +138,21 @@ app.get('/api/deliveries', verifyToken, (req, res) => {
 
   // Se o usuário for um morador, filtre as entregas pelo nome dele
   if (req.user.role === 'condomino') {
-    sql = "SELECT * FROM deliveries WHERE owner = ? ORDER BY ts DESC";
+    sql = "SELECT * FROM deliveries WHERE owner = $1 ORDER BY ts DESC";
     params.push(req.user.name);
     console.log(`[API] Filtrando entregas para o morador: ${req.user.name}`);
   }
 
-  db.all(sql, params, (err, rows) => {
-    if (err) {
-      res.status(500).json({ "error": err.message });
-      return;
-    }
+  try {
+    const { rows } = await db.query(sql, params);
     res.status(200).json(rows);
-  });
+  } catch (err) {
+    res.status(500).json({ "error": err.message });
+  }
 });
 
 // ROTA PARA ADICIONAR UMA NOVA ENTREGA (PROTEGIDA)
-app.post('/api/deliveries', verifyToken, (req, res) => {
+app.post('/api/deliveries', verifyToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Acesso negado. Apenas administradores podem registrar entregas.' });
   }
@@ -166,20 +163,19 @@ app.post('/api/deliveries', verifyToken, (req, res) => {
   }
 
   console.log(`[API] Admin ${req.user.username} registrou nova entrega para ${owner}.`);
-  const sql = `INSERT INTO deliveries (owner, info, ts) VALUES (?, ?, ?)`;
+  const sql = `INSERT INTO deliveries (owner, info, ts) VALUES ($1, $2, $3) RETURNING *`;
   const params = [owner, info, Date.now()];
-  db.run(sql, params, function (err) {
-    if (err) {
-      res.status(500).json({ "error": err.message });
-      return;
-    }
-    res.status(201).json({ id: this.lastID, owner, info, ts: params[2] });
-  });
+  try {
+    const { rows } = await db.query(sql, params);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ "error": err.message });
+  }
 });
 
 // ROTA PARA LIBERAR VISITANTE (PROTEGIDA)
 // Qualquer usuário logado pode chamar esta rota.
-app.post('/api/visitor-releases', verifyToken, (req, res) => {
+app.post('/api/visitor-releases', verifyToken, async (req, res) => {
   const { name, unit } = req.body;
   const residentName = req.user.name; // Pegamos o nome do morador a partir do token
 
@@ -191,34 +187,32 @@ app.post('/api/visitor-releases', verifyToken, (req, res) => {
 
   const title = 'Liberação de Visitante';
   const text = `O visitante ${name} foi liberado para a unidade ${unit} pelo(a) morador(a) ${residentName}.`;
-  const sql = `INSERT INTO announcements (title, text, img, ts) VALUES (?, ?, ?, ?)`;
+  const sql = `INSERT INTO announcements (title, text, img, ts) VALUES ($1, $2, $3, $4) RETURNING *`;
   const params = [title, text, null, Date.now()];
-  db.run(sql, params, function (err) {
-    if (err) {
-      res.status(500).json({ "error": err.message });
-      return;
-    }
-    res.status(201).json({ id: this.lastID, title, text, img: null, ts: params[3] });
-  });
+  try {
+    const { rows } = await db.query(sql, params);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ "error": err.message });
+  }
 });
 
 // --- ROTAS DE RESERVAS ---
 
 // ROTA PARA BUSCAR RESERVAS (PROTEGIDA)
-app.get('/api/reservations', verifyToken, (req, res) => {
+app.get('/api/reservations', verifyToken, async (req, res) => {
   console.log(`[API] Usuário ${req.user.username} está buscando a lista de reservas.`);
   const sql = "SELECT * FROM reservations ORDER BY date ASC"; // Ordena pela data da reserva
-  db.all(sql, [], (err, rows) => {
-    if (err) {
-      res.status(500).json({ "error": err.message });
-      return;
-    }
+  try {
+    const { rows } = await db.query(sql, []);
     res.status(200).json(rows);
-  });
+  } catch (err) {
+    res.status(500).json({ "error": err.message });
+  }
 });
 
 // ROTA PARA CRIAR UMA NOVA RESERVA (PROTEGIDA)
-app.post('/api/reservations', verifyToken, (req, res) => {
+app.post('/api/reservations', verifyToken, async (req, res) => {
   const { place, owner, date } = req.body;
   
   if (!place || !owner || !date) {
@@ -227,36 +221,36 @@ app.post('/api/reservations', verifyToken, (req, res) => {
 
   console.log(`[API] Usuário ${req.user.username} está criando uma reserva para ${owner} no local ${place}.`);
   
-  const sql = `INSERT INTO reservations (place, owner, date, ts) VALUES (?, ?, ?, ?)`;
+  const sql = `INSERT INTO reservations (place, owner, date, ts) VALUES ($1, $2, $3, $4) RETURNING *`;
   const params = [place, owner, date, Date.now()];
-  db.run(sql, params, function (err) {
-    if (err) {
-      return res.status(500).json({ "error": err.message });
-    }
-    res.status(201).json({ id: this.lastID, place, owner, date, ts: params[3] });
-  });
+  try {
+    const { rows } = await db.query(sql, params);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    return res.status(500).json({ "error": err.message });
+  }
 });
 
 // --- ROTAS DE USUÁRIOS (ADMIN) ---
 
 // ROTA PARA BUSCAR TODOS OS USUÁRIOS (ADMIN)
-app.get('/api/users', verifyToken, (req, res) => {
+app.get('/api/users', verifyToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Acesso negado.' });
   }
   console.log(`[API] Admin ${req.user.username} está buscando a lista de usuários.`);
   // Seleciona todos os campos, exceto a senha, por segurança.
   const sql = "SELECT id, username, name, role, initials, avatar FROM users ORDER BY name ASC";
-  db.all(sql, [], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ "error": err.message });
-    }
+  try {
+    const { rows } = await db.query(sql, []);
     res.status(200).json(rows);
-  });
+  } catch (err) {
+    return res.status(500).json({ "error": err.message });
+  }
 });
 
 // ROTA PARA CRIAR UM NOVO USUÁRIO (ADMIN)
-app.post('/api/users', verifyToken, (req, res) => {
+app.post('/api/users', verifyToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Acesso negado.' });
   }
@@ -269,19 +263,19 @@ app.post('/api/users', verifyToken, (req, res) => {
   const initials = name.trim().split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   console.log(`[API] Admin ${req.user.username} está criando o usuário: ${username}`);
 
-  const sql = `INSERT INTO users (username, password, name, role, initials) VALUES (?, ?, ?, ?, ?)`;
+  const sql = `INSERT INTO users (username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, name, role, initials`;
   const params = [username, password, name, role, initials];
 
-  db.run(sql, params, function (err) {
-    if (err) {
-      // Trata o erro de username duplicado
-      if (err.message.includes('UNIQUE constraint failed')) {
-        return res.status(409).json({ message: 'Este nome de usuário já existe.' });
-      }
-      return res.status(500).json({ "error": err.message });
+  try {
+    const { rows } = await db.query(sql, params);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    // Trata o erro de username duplicado
+    if (err.code === '23505') { // Código de erro para violação de constraint UNIQUE no PostgreSQL
+      return res.status(409).json({ message: 'Este nome de usuário já existe.' });
     }
-    res.status(201).json({ id: this.lastID, username, name, role, initials });
-  });
+    return res.status(500).json({ "error": err.message });
+  }
 });
 
 // 6. INICIA O SERVIDOR
