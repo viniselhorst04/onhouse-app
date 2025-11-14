@@ -26,23 +26,23 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // cache-first for app shell
-  event.respondWith(
-    caches.match(event.request).then((res) => {
-      if (res) return res;
-      return fetch(event.request).then((fetchRes) => {
-        // optional: put copy in cache
-        if (event.request.method === 'GET' && fetchRes && fetchRes.status === 200) {
-          const clone = fetchRes.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return fetchRes;
-      }).catch(() => {
-        // fallback if needed
-        if (event.request.destination === 'document') {
-          return caches.match('/index.html');
-        }
-      });
-    })
-  );
+  const { request } = event;
+
+  // Para requisições da API, use a estratégia "Network-First"
+  if (request.url.includes('/api/')) {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          // Se a requisição for bem-sucedida, clone e guarde no cache
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, responseClone));
+          return response;
+        })
+        .catch(() => caches.match(request)) // Se a rede falhar, use o cache
+    );
+    return;
+  }
+
+  // Para todos os outros assets (HTML, imagens, etc.), use "Cache-First"
+  event.respondWith(caches.match(request).then(response => response || fetch(request)));
 });
