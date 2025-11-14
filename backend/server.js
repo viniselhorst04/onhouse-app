@@ -89,8 +89,8 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ROTA PARA BUSCAR NOTIFICAÇÕES
-app.get('/api/announcements', async (req, res) => {
-  console.log(`[API] Enviando lista de notificações.`);
+app.get('/api/announcements', verifyToken, async (req, res) => {
+  console.log(`[API] Usuário ${req.user.username} está buscando a lista de notificações.`);
   const sql = "SELECT * FROM announcements ORDER BY ts DESC";
   try {
     const { rows } = await db.query(sql, []);
