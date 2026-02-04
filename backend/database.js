@@ -1,5 +1,6 @@
 // backend/database.js
 const { Pool } = require('pg');
+const { URL } = require('url');
 
 // IMPORTANTE: A Render injeta a URL de conexão automaticamente como uma variável de ambiente.
 // Não cole a sua URL aqui diretamente por segurança.
@@ -9,9 +10,14 @@ if (!connectionString) {
   console.error("❌ ERRO: DATABASE_URL não definida. Crie um arquivo .env na pasta backend.");
 }
 
+const dbUrl = new URL(connectionString);
+
 const pool = new Pool({
-  connectionString,
-  // O Supabase exige SSL. 'rejectUnauthorized: false' permite conectar sem configurar certificados complexos localmente.
+  user: decodeURIComponent(dbUrl.username),
+  password: decodeURIComponent(dbUrl.password),
+  host: dbUrl.hostname,
+  port: dbUrl.port,
+  database: dbUrl.pathname.split('/')[1],
   ssl: { rejectUnauthorized: false },
   family: 4, // Força a conexão via IPv4 para evitar erros de rede (ENETUNREACH) em ambientes como o Render
 });
