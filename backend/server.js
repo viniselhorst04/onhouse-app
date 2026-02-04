@@ -35,6 +35,11 @@ const corsOptions = {
 app.use(cors(corsOptions)); // Habilita o CORS para todas as requisições
 app.use(bodyParser.json()); // Faz o servidor entender o formato JSON
 
+// Rota de teste para verificar rapidamente se o servidor está online
+app.get('/', (req, res) => {
+  res.send('Backend OnHouse está Online e Conectado! 🚀');
+});
+
 // Middleware de Autenticação (Nosso "Guarda")
 // Esta função vai verificar se o token enviado pelo frontend é válido.
 function verifyToken(req, res, next) {
