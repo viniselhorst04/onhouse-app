@@ -13,6 +13,7 @@ const pool = new Pool({
   connectionString,
   // O Supabase exige SSL. 'rejectUnauthorized: false' permite conectar sem configurar certificados complexos localmente.
   ssl: { rejectUnauthorized: false },
+  family: 4, // Força a conexão via IPv4 para evitar erros de rede (ENETUNREACH) em ambientes como o Render
 });
 
 async function initializeDatabase() {
