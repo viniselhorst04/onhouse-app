@@ -1,6 +1,7 @@
 // backend/server.js
 
 // 1. Importa as bibliotecas que acabamos de instalar
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -10,14 +11,17 @@ const db = require('./database.js'); // Importa a conexão com o banco de dados
 // 2. Configuração inicial do nosso aplicativo servidor
 const app = express();
 const PORT = 3000; // A porta em que o servidor vai "ouvir"
-const JWT_SECRET = 'onhouse-chave-super-secreta-123'; // Uma senha para o servidor criar os tokens
+const JWT_SECRET = process.env.JWT_SECRET || 'onhouse-chave-super-secreta-123'; // Usa variável de ambiente ou fallback
 
 // Opções do CORS: Permite requisições apenas do seu site na Netlify
 const corsOptions = {
   origin: function (origin, callback) {
     // Lista de URLs que podem fazer requisições à sua API.
     const allowedOrigins = [
-      'https://onhousebr.netlify.app' // URL de produção
+      'https://onhousebr.netlify.app', // URL de produção
+      'https://onhouse.netlify.app',   // URL de produção (Seu link atual)
+      'http://localhost:5500',         // Frontend local (Live Server)
+      'http://127.0.0.1:5500'          // Frontend local (IP)
     ];
     if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
       callback(null, true);

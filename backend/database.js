@@ -5,10 +5,14 @@ const { Pool } = require('pg');
 // Não cole a sua URL aqui diretamente por segurança.
 const connectionString = process.env.DATABASE_URL;
 
+if (!connectionString) {
+  console.error("❌ ERRO: DATABASE_URL não definida. Crie um arquivo .env na pasta backend.");
+}
+
 const pool = new Pool({
   connectionString,
-  // Se estiver rodando na Render, SSL é necessário.
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // O Supabase exige SSL. 'rejectUnauthorized: false' permite conectar sem configurar certificados complexos localmente.
+  ssl: { rejectUnauthorized: false },
 });
 
 async function initializeDatabase() {
