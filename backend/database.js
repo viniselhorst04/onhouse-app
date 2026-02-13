@@ -1,5 +1,7 @@
 // backend/database.js
 const { Pool } = require('pg');
+const dns = require('dns');
+const { URL } = require('url');
 
 // IMPORTANTE: A Render injeta a URL de conexão automaticamente como uma variável de ambiente.
 // Não cole a sua URL aqui diretamente por segurança.
@@ -9,15 +11,46 @@ if (!connectionString) {
   console.error("❌ ERRO: DATABASE_URL não definida. Crie um arquivo .env na pasta backend.");
 }
 
-const pool = new Pool({
-  connectionString,
-  ssl: { rejectUnauthorized: false },
-  family: 4 // Força o uso de IPv4 para evitar erros de conexão via IPv6 (ENETUNREACH)
-});
+let poolPromise = null;
+
+// Função robusta para obter o pool, forçando IPv4 via DNS
+function getPool() {
+  if (poolPromise) return poolPromise;
+
+  poolPromise = (async () => {
+    try {
+      const dbUrl = new URL(connectionString);
+      // Resolve o hostname para IPv4 explicitamente
+      const ip = await new Promise((resolve, reject) => {
+        dns.resolve4(dbUrl.hostname, (err, addresses) => {
+          if (err) reject(err);
+          else resolve(addresses[0]);
+        });
+      });
+      
+      console.log(`✅ DNS resolvido: ${dbUrl.hostname} -> ${ip}`);
+      
+      return new Pool({
+        user: decodeURIComponent(dbUrl.username),
+        password: decodeURIComponent(dbUrl.password),
+        host: ip, // Usa o IP resolvido diretamente
+        port: dbUrl.port,
+        database: dbUrl.pathname.split('/')[1],
+        ssl: { rejectUnauthorized: false },
+      });
+    } catch (err) {
+      console.warn('⚠️ Falha no DNS manual, tentando conexão padrão:', err.message);
+      return new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
+    }
+  })();
+
+  return poolPromise;
+}
 
 async function initializeDatabase() {
   try {
-    await pool.query(`
+    const db = await getPool();
+    await db.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
@@ -29,7 +62,7 @@ async function initializeDatabase() {
       );
     `);
 
-    await pool.query(`
+    await db.query(`
       CREATE TABLE IF NOT EXISTS announcements (
         id SERIAL PRIMARY KEY,
         title TEXT,
@@ -39,7 +72,7 @@ async function initializeDatabase() {
       );
     `);
 
-    await pool.query(`
+    await db.query(`
       CREATE TABLE IF NOT EXISTS deliveries (
         id SERIAL PRIMARY KEY,
         owner TEXT,
@@ -48,7 +81,7 @@ async function initializeDatabase() {
       );
     `);
 
-    await pool.query(`
+    await db.query(`
       CREATE TABLE IF NOT EXISTS reservations (
         id SERIAL PRIMARY KEY,
         place TEXT,
@@ -58,10 +91,10 @@ async function initializeDatabase() {
       );
     `);
 
-    const { rows } = await pool.query("SELECT COUNT(*) as count FROM users");
+    const { rows } = await db.query("SELECT COUNT(*) as count FROM users");
     if (rows[0].count === '0') {
-      await pool.query(`INSERT INTO users (username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5)`, ['admin', '1234', 'Admin', 'admin', 'AD']);
-      await pool.query(`INSERT INTO users (username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5)`, ['helo', 'cond', 'Heloisa Ferraz', 'condomino', 'HF']);
+      await db.query(`INSERT INTO users (username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5)`, ['admin', '1234', 'Admin', 'admin', 'AD']);
+      await db.query(`INSERT INTO users (username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5)`, ['helo', 'cond', 'Heloisa Ferraz', 'condomino', 'HF']);
       console.log("Usuários padrão inseridos.");
     }
 
@@ -75,5 +108,8 @@ async function initializeDatabase() {
 initializeDatabase();
 
 module.exports = {
-  query: (text, params) => pool.query(text, params),
+  query: async (text, params) => {
+    const db = await getPool();
+    return db.query(text, params);
+  },
 };
