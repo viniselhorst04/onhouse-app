@@ -138,7 +138,7 @@
     // Detecta se está rodando localmente ou em produção
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     // IMPORTANTE: Substitua a URL abaixo pela URL do SEU backend no Render se for diferente
-    const API_URL = isLocal ? 'http://localhost:3000/api' : 'https://onhouse-app.onrender.com/api';
+    const API_URL = isLocal ? 'http://localhost:3000/api' : 'https://onhouse-app-backend.onrender.com/api';
     
     let appData = { announcements: [], deliveries: [], reservations: [] };
     const overlay = document.getElementById('overlay');
