@@ -10,7 +10,7 @@ const db = require('./database.js'); // Importa a conexão com o banco de dados
 
 // 2. Configuração inicial do nosso aplicativo servidor
 const app = express();
-const PORT = 3000; // A porta em que o servidor vai "ouvir"
+const PORT = process.env.PORT || 3000; // A porta em que o servidor vai "ouvir"
 const JWT_SECRET = process.env.JWT_SECRET || 'onhouse-chave-super-secreta-123'; // Usa variável de ambiente ou fallback
 
 // Opções do CORS: Permite requisições apenas do seu site na Netlify
