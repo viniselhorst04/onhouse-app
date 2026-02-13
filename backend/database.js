@@ -22,9 +22,9 @@ function getPool() {
       const dbUrl = new URL(connectionString);
       // Resolve o hostname para IPv4 explicitamente
       const ip = await new Promise((resolve, reject) => {
-        dns.resolve4(dbUrl.hostname, (err, addresses) => {
+        dns.lookup(dbUrl.hostname, { family: 4 }, (err, address) => {
           if (err) reject(err);
-          else resolve(addresses[0]);
+          else resolve(address);
         });
       });
       
