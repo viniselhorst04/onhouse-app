@@ -4,9 +4,7 @@ const ASSETS = [
   './index.html',
   './manifest.json',
   './nova-logo.png',
-  './natal.jpeg',
-  './leitura-agua.png',
-  // se tiver outros assets (css, imagens), adicione aqui
+  // Adicione aqui apenas arquivos que REALMENTE existem na pasta
 ];
 
 self.addEventListener('install', (event) => {
@@ -27,6 +25,13 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+
+  // --- ADICIONE ESTAS 3 LINHAS ---
+    // Ignora requisições que não sejam GET (como o POST do login)
+    if (request.method !== 'GET') {
+        return; 
+    }
+    // -------------------------------
 
   // Para requisições da API, use a estratégia "Network-First"
   if (request.url.includes('/api/')) {
