@@ -55,20 +55,27 @@ function verifyToken(req, res, next) {
 // 5. CRIAÇÃO DA ROTA DE LOGIN
 // Este é o "endereço" que o seu frontend vai chamar: http://localhost:3000/api/login
 app.post('/api/login', async (req, res) => {
-  // Pega o 'username' e 'password' que o frontend enviou no corpo da requisição
-  const { username, password } = req.body;
-  console.log(`[API] Recebida tentativa de login para o usuário: ${username}`);
+  // Agora recebemos também o 'condoSlug' (código do condomínio)
+  const { username, password, condoSlug } = req.body;
+  console.log(`[API] Login: ${username} em ${condoSlug}`);
 
-  const sql = "SELECT * FROM users WHERE username = $1 AND password = $2";
   try {
-    const { rows } = await db.query(sql, [username, password]);
+    // 1. Achar o condomínio
+    const condoRes = await db.query("SELECT id, name, config FROM condos WHERE slug = $1", [condoSlug || 'demo']);
+    if (condoRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Condomínio não encontrado.' });
+    }
+    const condo = condoRes.rows[0];
+
+    // 2. Achar o usuário DENTRO desse condomínio
+    const sql = "SELECT * FROM users WHERE condo_id = $1 AND username = $2 AND password = $3";
+    const { rows } = await db.query(sql, [condo.id, username, password]);
     const user = rows[0];
 
     if (user) {
-      // Se o login estiver correto...
-      const userData = { name: user.name, role: user.role, avatar: user.avatar, initials: user.initials };
+      const userData = { name: user.name, role: user.role, avatar: user.avatar, initials: user.initials, condoName: condo.name };
       const token = jwt.sign(
-        { username: user.username, name: user.name, role: user.role },
+        { id: user.id, username: user.username, name: user.name, role: user.role, condo_id: condo.id }, // Inclui condo_id no token
         JWT_SECRET,
         { expiresIn: '24h' } // Aumentei a expiração
       );
@@ -88,9 +95,9 @@ app.post('/api/login', async (req, res) => {
 // ROTA PARA BUSCAR NOTIFICAÇÕES
 app.get('/api/announcements', verifyToken, async (req, res) => {
   console.log(`[API] Usuário ${req.user.username} está buscando a lista de notificações.`);
-  const sql = "SELECT * FROM announcements ORDER BY ts DESC";
+  const sql = "SELECT * FROM announcements WHERE condo_id = $1 ORDER BY ts DESC";
   try {
-    const { rows } = await db.query(sql, []);
+    const { rows } = await db.query(sql, [req.user.condo_id]);
     res.status(200).json(rows);
   } catch (err) {
     res.status(500).json({ "error": err.message });
@@ -110,8 +117,8 @@ app.post('/api/announcements', verifyToken, async (req, res) => {
     return res.status(400).json({ message: 'Título e texto são obrigatórios.' });
   }
 
-  const sql = `INSERT INTO announcements (title, text, img, ts) VALUES ($1, $2, $3, $4) RETURNING *`;
-  const params = [title, text, img || null, Date.now()];
+  const sql = `INSERT INTO announcements (condo_id, title, text, img, ts) VALUES ($1, $2, $3, $4, $5) RETURNING *`;
+  const params = [req.user.condo_id, title, text, img || null, Date.now()];
   try {
     const { rows } = await db.query(sql, params);
     res.status(201).json(rows[0]);
@@ -127,9 +134,9 @@ app.delete('/api/announcements/:id', verifyToken, async (req, res) => {
   }
 
   console.log(`[API] Admin ${req.user.username} está deletando a notificação ID: ${req.params.id}`);
-  const sql = 'DELETE FROM announcements WHERE id = $1';
+  const sql = 'DELETE FROM announcements WHERE id = $1 AND condo_id = $2';
   try {
-    const result = await db.query(sql, [req.params.id]);
+    const result = await db.query(sql, [req.params.id, req.user.condo_id]);
     if (result.rowCount === 0) {
       return res.status(404).json({ message: 'Notificação não encontrada.' });
     }
@@ -145,13 +152,13 @@ app.delete('/api/announcements/:id', verifyToken, async (req, res) => {
 app.get('/api/deliveries', verifyToken, async (req, res) => {
   console.log(`[API] Usuário ${req.user.username} está buscando a lista de entregas.`);
   
-  let sql = "SELECT * FROM deliveries ORDER BY ts DESC";
-  let params = [];
+  let sql = "SELECT * FROM deliveries WHERE condo_id = $1 ORDER BY ts DESC";
+  let params = [req.user.condo_id];
 
   // Se o usuário for um morador, filtre as entregas pelo nome dele
   if (req.user.role === 'condomino') {
-    sql = "SELECT * FROM deliveries WHERE owner = $1 ORDER BY ts DESC";
-    params.push(req.user.name);
+    sql = "SELECT * FROM deliveries WHERE condo_id = $1 AND owner = $2 ORDER BY ts DESC";
+    params.push(req.user.name); // params agora tem [condo_id, owner]
     console.log(`[API] Filtrando entregas para o morador: ${req.user.name}`);
   }
 
@@ -175,8 +182,8 @@ app.post('/api/deliveries', verifyToken, async (req, res) => {
   }
 
   console.log(`[API] Admin ${req.user.username} registrou nova entrega para ${owner}.`);
-  const sql = `INSERT INTO deliveries (owner, info, ts) VALUES ($1, $2, $3) RETURNING *`;
-  const params = [owner, info, Date.now()];
+  const sql = `INSERT INTO deliveries (condo_id, owner, info, ts) VALUES ($1, $2, $3, $4) RETURNING *`;
+  const params = [req.user.condo_id, owner, info, Date.now()];
   try {
     const { rows } = await db.query(sql, params);
     res.status(201).json(rows[0]);
@@ -199,8 +206,8 @@ app.post('/api/visitor-releases', verifyToken, async (req, res) => {
 
   const title = 'Liberação de Visitante';
   const text = `O visitante ${name} foi liberado para a unidade ${unit} pelo(a) morador(a) ${residentName}.`;
-  const sql = `INSERT INTO announcements (title, text, img, ts) VALUES ($1, $2, $3, $4) RETURNING *`;
-  const params = [title, text, null, Date.now()];
+  const sql = `INSERT INTO announcements (condo_id, title, text, img, ts) VALUES ($1, $2, $3, $4, $5) RETURNING *`;
+  const params = [req.user.condo_id, title, text, null, Date.now()];
   try {
     const { rows } = await db.query(sql, params);
     res.status(201).json(rows[0]);
@@ -214,9 +221,9 @@ app.post('/api/visitor-releases', verifyToken, async (req, res) => {
 // ROTA PARA BUSCAR RESERVAS (PROTEGIDA)
 app.get('/api/reservations', verifyToken, async (req, res) => {
   console.log(`[API] Usuário ${req.user.username} está buscando a lista de reservas.`);
-  const sql = "SELECT * FROM reservations ORDER BY date ASC"; // Ordena pela data da reserva
+  const sql = "SELECT * FROM reservations WHERE condo_id = $1 ORDER BY date ASC"; // Ordena pela data da reserva
   try {
-    const { rows } = await db.query(sql, []);
+    const { rows } = await db.query(sql, [req.user.condo_id]);
     res.status(200).json(rows);
   } catch (err) {
     res.status(500).json({ "error": err.message });
@@ -233,8 +240,8 @@ app.post('/api/reservations', verifyToken, async (req, res) => {
 
   console.log(`[API] Usuário ${req.user.username} está criando uma reserva para ${owner} no local ${place}.`);
   
-  const sql = `INSERT INTO reservations (place, owner, date, ts) VALUES ($1, $2, $3, $4) RETURNING *`;
-  const params = [place, owner, date, Date.now()];
+  const sql = `INSERT INTO reservations (condo_id, place, owner, date, ts) VALUES ($1, $2, $3, $4, $5) RETURNING *`;
+  const params = [req.user.condo_id, place, owner, date, Date.now()];
   try {
     const { rows } = await db.query(sql, params);
     res.status(201).json(rows[0]);
@@ -252,9 +259,9 @@ app.get('/api/users', verifyToken, async (req, res) => {
   }
   console.log(`[API] Admin ${req.user.username} está buscando a lista de usuários.`);
   // Seleciona todos os campos, exceto a senha, por segurança.
-  const sql = "SELECT id, username, name, role, initials, avatar FROM users ORDER BY name ASC";
+  const sql = "SELECT id, username, name, role, initials, avatar FROM users WHERE condo_id = $1 ORDER BY name ASC";
   try {
-    const { rows } = await db.query(sql, []);
+    const { rows } = await db.query(sql, [req.user.condo_id]);
     res.status(200).json(rows);
   } catch (err) {
     return res.status(500).json({ "error": err.message });
@@ -275,8 +282,8 @@ app.post('/api/users', verifyToken, async (req, res) => {
   const initials = name.trim().split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   console.log(`[API] Admin ${req.user.username} está criando o usuário: ${username}`);
 
-  const sql = `INSERT INTO users (username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, name, role, initials`;
-  const params = [username, password, name, role, initials];
+  const sql = `INSERT INTO users (condo_id, username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, name, role, initials`;
+  const params = [req.user.condo_id, username, password, name, role, initials];
 
   try {
     const { rows } = await db.query(sql, params);

@@ -87,6 +87,8 @@
 
       <div class="login-container">
         <h3 style="margin-bottom: 20px;">Acessar o sistema</h3>
+        <label>Código do Condomínio</label>
+        <input id="login-condo" placeholder="Ex: demo" value="demo">
         <label>Usuário</label>
         <input id="login-user" placeholder="User">
         <label style="margin-top:10px">Senha</label>
@@ -97,7 +99,7 @@
     <div class="screen" id="home-screen" style="display:none;">
       <div class="top" style="margin-top:0">
         <div class="avatar" id="avatar"></div>
-        <div class="user"><h3 id="username">Tainara</h3><p class="small">Condomínio</p></div>
+        <div class="user"><h3 id="username">Usuário</h3><p class="small" id="condo-name">Condomínio</p></div>
         <div class="clock small" id="time">--:--</div>
       </div>
 
@@ -144,6 +146,17 @@
     let appData = { announcements: [], deliveries: [], reservations: [] };
     const overlay = document.getElementById('overlay');
     const panel = document.getElementById('panel-content');
+
+    // --- Utils ---
+    function escapeHtml(text) {
+      if (typeof text !== 'string') return text;
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
 
     // --- Toast Notification ---
     function showToast(message, type = 'success', duration = 2000) {
@@ -209,6 +222,7 @@
     // --- Auth & Data Loading ---
     async function handleLogin() {
         const loginBtn = document.getElementById('login-btn');
+        const condoKey = document.getElementById('login-condo').value.trim().toLowerCase();
         const userKey = document.getElementById('login-user').value.toLowerCase();
         const pass = document.getElementById('login-pass').value;
 
@@ -219,7 +233,7 @@
             const response = await fetch(`${API_URL}/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: userKey, password: pass }),
+                body: JSON.stringify({ username: userKey, password: pass, condoSlug: condoKey }),
             });
             if (!response.ok) {
                 const errorResult = await response.json();
@@ -294,6 +308,7 @@
 
     function renderUserProfile(profile) {
         document.getElementById('username').innerText = profile.name;
+        document.getElementById('condo-name').innerText = profile.condoName || 'Condomínio';
         const avatarEl = document.getElementById('avatar');
         if (profile.avatar) {
             avatarEl.innerHTML = `<img src="${profile.avatar}" class="avatar" alt="Foto de perfil" style="width:100%;height:100%">`;
@@ -310,7 +325,7 @@
         anns.forEach(a => {
             const c = document.createElement('div');
             c.className = 'card';
-            c.innerHTML = `<img src='${a.img || `https://picsum.photos/400/180?random=${a.id}`}' alt='${a.title}'/><small>${a.title}</small>`;
+            c.innerHTML = `<img src='${a.img || `https://picsum.photos/400/180?random=${a.id}`}' alt='${escapeHtml(a.title)}'/><small>${escapeHtml(a.title)}</small>`;
             c.onclick = () => openAnnouncement(a.id);
             container.appendChild(c);
         });
@@ -327,7 +342,7 @@
         anns.forEach(a => {
             const it = document.createElement('div');
             it.className = 'item';
-            it.innerHTML = `<strong>${a.title}</strong><div class='small'>${new Date(a.ts).toLocaleString()}</div>`;
+            it.innerHTML = `<strong>${escapeHtml(a.title)}</strong><div class='small'>${new Date(a.ts).toLocaleString()}</div>`;
             it.onclick = () => openAnnouncement(a.id);
             list.appendChild(it);
         });
@@ -385,7 +400,7 @@
             ? `<button class='toggle' onclick='handleDeleteAnnouncement(${a.id})'>Remover</button>`
             : '';
 
-        openPanel(`<h2>${a.title}</h2><div class='small'>${new Date(a.ts).toLocaleString()}</div><img src='${a.img || `https://picsum.photos/600/200?random=${a.id}`}' style='width:100%;margin-top:8px;border-radius:8px'/><p style='margin-top:8px'>${a.text}</p><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' onclick='closePanel()'>Fechar</button>${deleteButtonHTML}</div>`);
+        openPanel(`<h2>${escapeHtml(a.title)}</h2><div class='small'>${new Date(a.ts).toLocaleString()}</div><img src='${a.img || `https://picsum.photos/600/200?random=${a.id}`}' style='width:100%;margin-top:8px;border-radius:8px'/><p style='margin-top:8px'>${escapeHtml(a.text)}</p><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' onclick='closePanel()'>Fechar</button>${deleteButtonHTML}</div>`);
     }
 
     async function handleDeleteAnnouncement(id) {
@@ -409,7 +424,7 @@
     // --- Deliveries ---
     function openPanelDeliveries() {
         const currentUser = JSON.parse(sessionStorage.getItem('loggedInUser'));
-        const renderDeliveryItem = (d) => `<div class='item'><strong>${d.owner}</strong><div class='small'>${new Date(d.ts).toLocaleString()}</div><p>${d.info}</p></div>`;
+        const renderDeliveryItem = (d) => `<div class='item'><strong>${escapeHtml(d.owner)}</strong><div class='small'>${new Date(d.ts).toLocaleString()}</div><p>${escapeHtml(d.info)}</p></div>`;
 
         const adminFormHTML = currentUser.role === 'admin' ? `
           <hr><h3>Registrar entrega</h3>
@@ -445,7 +460,7 @@
     // --- Reservations ---
     function openPanelReservations() {
         const currentUser = JSON.parse(sessionStorage.getItem('loggedInUser'));
-        const renderReservationItem = (r) => `<div class='item'><strong>${r.place}</strong><div class='small'>${new Date(r.date).toLocaleString()}</div><p>Reservado por: ${r.owner}</p></div>`;
+        const renderReservationItem = (r) => `<div class='item'><strong>${escapeHtml(r.place)}</strong><div class='small'>${new Date(r.date).toLocaleString()}</div><p>Reservado por: ${escapeHtml(r.owner)}</p></div>`;
 
         openPanel(`<h2>Reservas</h2><div id='res_list'>${appData.reservations.length ? appData.reservations.map(renderReservationItem).join('') : '<div class="empty">Nenhuma reserva</div>'}</div><hr><h3>Nova reserva</h3><input id='r_place' placeholder='Local (ex: Salão de festas)'><input id='r_owner' value='${currentUser.name}' placeholder='Nome'><input id='r_date' type='datetime-local'><div style='display:flex;gap:8px;margin-top:8px'><button class='primary' id='addR'>Reservar</button><button class='toggle' onclick='closePanel()'>Fechar</button></div>`);
         document.getElementById('addR').onclick = handleAddReservation;
@@ -497,7 +512,7 @@
     async function openPanelUsers() {
         try {
             const users = await fetchWithAuth('/users');
-            const renderUserItem = (u) => `<div class='item'><strong>${u.name}</strong><div class='small'>@${u.username} - ${u.role}</div></div>`;
+            const renderUserItem = (u) => `<div class='item'><strong>${escapeHtml(u.name)}</strong><div class='small'>@${escapeHtml(u.username)} - ${escapeHtml(u.role)}</div></div>`;
 
             openPanel(`<h2>Gerenciar Usuários</h2>
                 <div id='users_list'>${users.length ? users.map(renderUserItem).join('') : '<div class="empty">Nenhum usuário encontrado.</div>'}</div>
@@ -543,7 +558,7 @@
 
     // --- Full Mural & Profile ---
     function openMuralFull() {
-        openPanel(`<h2>Mural</h2><div class='list'>${appData.announcements.map(a => `<div class='item'><strong>${a.title}</strong><div class='small'>${new Date(a.ts).toLocaleString()}</div><p>${a.text}</p><div style='display:flex;gap:8px'><button class='primary' onclick='openAnnouncement(${a.id})'>Abrir</button></div></div>`).join('')}</div><div style='margin-top:12px'><button class='toggle' onclick='closePanel()'>Fechar</button></div>`);
+        openPanel(`<h2>Mural</h2><div class='list'>${appData.announcements.map(a => `<div class='item'><strong>${escapeHtml(a.title)}</strong><div class='small'>${new Date(a.ts).toLocaleString()}</div><p>${escapeHtml(a.text)}</p><div style='display:flex;gap:8px'><button class='primary' onclick='openAnnouncement(${a.id})'>Abrir</button></div></div>`).join('')}</div><div style='margin-top:12px'><button class='toggle' onclick='closePanel()'>Fechar</button></div>`);
     }
 
     function openProfile() {
