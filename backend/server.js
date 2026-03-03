@@ -297,6 +297,38 @@ app.post('/api/users', verifyToken, async (req, res) => {
   }
 });
 
+// --- ROTA DE SETUP (CRIAR NOVO MUNDO) ---
+// Use esta rota para criar novos condomínios e seus administradores iniciais.
+app.post('/api/setup-condo', async (req, res) => {
+  const { name, slug, adminUsername, adminPassword, adminName } = req.body;
+
+  if (!name || !slug || !adminUsername || !adminPassword || !adminName) {
+    return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
+  }
+
+  try {
+    const safeSlug = slug.trim().toLowerCase();
+
+    // 1. Cria o condomínio
+    const condoRes = await db.query(
+      `INSERT INTO condos (name, slug, config) VALUES ($1, $2, $3) RETURNING id`,
+      [name, safeSlug, '{"theme": "default"}']
+    );
+    const condoId = condoRes.rows[0].id;
+
+    // 2. Cria o primeiro admin deste condomínio
+    const initials = adminName.trim().split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    await db.query(
+      `INSERT INTO users (condo_id, username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [condoId, adminUsername, adminPassword, adminName, 'admin', initials]
+    );
+
+    res.status(201).json({ message: `Mundo '${name}' criado! Use o código '${safeSlug}' para entrar.` });
+  } catch (err) {
+    res.status(500).json({ "error": err.message });
+  }
+});
+
 // 6. INICIA O SERVIDOR
 // Faz o servidor começar a "ouvir" por conexões na porta que definimos
 app.listen(PORT, '0.0.0.0', () => {
