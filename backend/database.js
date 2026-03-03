@@ -75,16 +75,43 @@ async function initializeDatabase() {
       );
     `);
 
-    // Cria um condomínio padrão e usuários se não existirem
-    const { rows } = await pool.query("SELECT COUNT(*) as count FROM condos");
-    if (rows[0].count === '0') {
-      console.log("Criando condomínio Demo e usuários padrão...");
-      const condoRes = await pool.query(`INSERT INTO condos (name, slug, config) VALUES ($1, $2, $3) RETURNING id`, ['Condomínio Demo', 'demo', '{"theme": "default"}']);
-      const condoId = condoRes.rows[0].id;
+    // --- MIGRATION & SEEDING ---
+    // 1. Adiciona colunas condo_id em tabelas antigas se não existirem
+    const tables = ['users', 'announcements', 'deliveries', 'reservations'];
+    for (const table of tables) {
+      await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS condo_id INTEGER REFERENCES condos(id)`);
+    }
 
-      await pool.query(`INSERT INTO users (condo_id, username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5, $6)`, [condoId, 'admin', '1234', 'Admin', 'admin', 'AD']);
-      await pool.query(`INSERT INTO users (condo_id, username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5, $6)`, [condoId, 'helo', 'cond', 'Heloisa Ferraz', 'condomino', 'HF']);
-      console.log("Dados iniciais inseridos com sucesso.");
+    // 2. Garante que o condomínio Demo existe
+    let demoId;
+    const condoCheck = await pool.query("SELECT id FROM condos WHERE slug = 'demo'");
+    if (condoCheck.rows.length > 0) {
+      demoId = condoCheck.rows[0].id;
+    } else {
+      console.log("Criando condomínio Demo...");
+      const newCondo = await pool.query(`INSERT INTO condos (name, slug, config) VALUES ($1, $2, $3) RETURNING id`, ['Condomínio Demo', 'demo', '{"theme": "default"}']);
+      demoId = newCondo.rows[0].id;
+    }
+
+    // 3. Atualiza dados órfãos (sem condomínio) para o Demo
+    for (const table of tables) {
+      await pool.query(`UPDATE ${table} SET condo_id = $1 WHERE condo_id IS NULL`, [demoId]);
+    }
+
+    // 4. Garante usuários padrão no Demo (se não existirem)
+    const userCheck = await pool.query("SELECT id FROM users WHERE username = 'admin' AND condo_id = $1", [demoId]);
+    if (userCheck.rows.length === 0) {
+      console.log("Criando usuários padrão...");
+      await pool.query(`INSERT INTO users (condo_id, username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5, $6)`, [demoId, 'admin', '1234', 'Admin', 'admin', 'AD']);
+      await pool.query(`INSERT INTO users (condo_id, username, password, name, role, initials) VALUES ($1, $2, $3, $4, $5, $6)`, [demoId, 'helo', 'cond', 'Heloisa Ferraz', 'condomino', 'HF']);
+    }
+
+    // 5. Ajusta constraint de unicidade (remove global, adiciona por condomínio)
+    try {
+      await pool.query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_key");
+      await pool.query("ALTER TABLE users ADD CONSTRAINT users_username_condo_unique UNIQUE (username, condo_id)");
+    } catch (err) {
+      // Ignora erro se constraint não existir ou já estiver correta
     }
 
     console.log('Conectado e inicializado no banco de dados PostgreSQL.');
