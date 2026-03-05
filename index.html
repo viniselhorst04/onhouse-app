@@ -140,7 +140,7 @@
     // Detecta se está rodando localmente ou em produção
     
     // Se não estiver no domínio de produção (Render), assume que é local (PC ou Celular na rede)
-    const isProduction = window.location.hostname.includes('onrender.com');
+    const isProduction = window.location.hostname.includes('onrender.com') || window.location.hostname.includes('netlify.app');
     const API_URL = isProduction ? 'https://onhouse-app.onrender.com/api' : `http://${window.location.hostname}:3000/api`;
 
     
