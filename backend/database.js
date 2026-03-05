@@ -9,14 +9,28 @@ if (!connectionString) {
   console.error("❌ ERRO: DATABASE_URL não definida. Crie um arquivo .env na pasta backend.");
 }
 
-const pool = new Pool({
-  connectionString,
-  ssl: { rejectUnauthorized: false },
-  family: 4 // Força o uso de IPv4 para evitar erros de conexão (ENETUNREACH) no Render
-});
+// Configuração explícita para forçar IPv4
+// O driver 'pg' pode ignorar 'family: 4' se usarmos connectionString direto.
+let poolConfig;
+try {
+  const dbUrl = new URL(connectionString);
+  poolConfig = {
+    user: dbUrl.username,
+    password: dbUrl.password,
+    host: dbUrl.hostname,
+    port: dbUrl.port,
+    database: dbUrl.pathname.split('/')[1],
+    ssl: { rejectUnauthorized: false },
+    family: 4 // Força IPv4
+  };
+} catch (error) {
+  poolConfig = { connectionString, ssl: { rejectUnauthorized: false }, family: 4 };
+}
+
+const pool = new Pool(poolConfig);
 
 // Log de diagnóstico para confirmar que a versão correta subiu
-console.log("🔧 Tentando conectar ao banco com configuração IPv4...");
+console.log("🔧 Tentando conectar ao banco (Parse Manual IPv4)...");
 
 async function initializeDatabase() {
   try {
