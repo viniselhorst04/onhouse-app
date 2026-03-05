@@ -15,6 +15,9 @@ const pool = new Pool({
   family: 4 // Força o uso de IPv4 para evitar erros de conexão (ENETUNREACH) no Render
 });
 
+// Log de diagnóstico para confirmar que a versão correta subiu
+console.log("🔧 Tentando conectar ao banco com configuração IPv4...");
+
 async function initializeDatabase() {
   try {
     // Teste de conexão
