@@ -60,8 +60,11 @@ app.post('/api/login', async (req, res) => {
   console.log(`[API] Login: ${username} em ${condoSlug}`);
 
   try {
+    // Garante que não há espaços em branco extras e define o fallback
+    const targetSlug = (condoSlug || 'demo').trim();
+
     // 1. Achar o condomínio
-    const condoRes = await db.query("SELECT id, name, config FROM condos WHERE slug = $1", [condoSlug || 'demo']);
+    const condoRes = await db.query("SELECT id, name, config FROM condos WHERE slug = $1", [targetSlug]);
     if (condoRes.rows.length === 0) {
       return res.status(404).json({ message: 'Condomínio não encontrado.' });
     }
@@ -294,6 +297,23 @@ app.post('/api/users', verifyToken, async (req, res) => {
       return res.status(409).json({ message: 'Este nome de usuário já existe.' });
     }
     return res.status(500).json({ "error": err.message });
+  }
+});
+
+// ROTA PARA ATUALIZAR O PRÓPRIO PERFIL (Novo)
+app.put('/api/users/profile', verifyToken, async (req, res) => {
+  const { name, password } = req.body;
+  
+  if (!name || !password) {
+    return res.status(400).json({ message: 'Nome e senha são obrigatórios.' });
+  }
+
+  console.log(`[API] Usuário ${req.user.username} está atualizando o perfil.`);
+  try {
+    await db.query("UPDATE users SET name = $1, password = $2 WHERE id = $3", [name, password, req.user.id]);
+    res.status(200).json({ message: 'Perfil atualizado com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ "error": err.message });
   }
 });
 

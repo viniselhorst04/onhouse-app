@@ -117,6 +117,10 @@ async function initializeDatabase() {
     console.log('Conectado e inicializado no banco de dados PostgreSQL.');
   } catch (err) {
     console.error('Erro ao inicializar o banco de dados', err.stack);
+    if (err.message && err.message.includes('password authentication failed')) {
+      console.error('\n💡 DICA: A senha do banco de dados está incorreta.');
+      console.error('   Verifique o arquivo .env na pasta backend e confirme a variável DATABASE_URL.\n');
+    }
     process.exit(1); // Encerra a aplicação se não conseguir conectar/inicializar o DB
   }
 }
