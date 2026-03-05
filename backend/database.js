@@ -1,6 +1,5 @@
 // backend/database.js
 const { Pool } = require('pg');
-const dns = require('dns');
 
 // IMPORTANTE: A Render injeta a URL de conexão automaticamente como uma variável de ambiente.
 // Não cole a sua URL aqui diretamente por segurança.
@@ -10,31 +9,13 @@ if (!connectionString) {
   console.error("❌ ERRO: DATABASE_URL não definida. Crie um arquivo .env na pasta backend.");
 }
 
-let pool;
+const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false }
+});
 
 async function initializeDatabase() {
   try {
-    console.log("🔧 Resolvendo DNS para IPv4 manualmente...");
-    const dbUrl = new URL(connectionString);
-    
-    // Resolve o hostname para IPv4 explicitamente antes de conectar
-    const { address } = await new Promise((resolve, reject) => {
-      dns.lookup(dbUrl.hostname, { family: 4 }, (err, address) => {
-        if (err) reject(err);
-        else resolve({ address });
-      });
-    });
-    console.log(`✅ DNS Resolvido: ${dbUrl.hostname} -> ${address}`);
-
-    pool = new Pool({
-      user: dbUrl.username,
-      password: dbUrl.password,
-      host: address, // Usa o IP resolvido
-      port: dbUrl.port,
-      database: dbUrl.pathname.split('/')[1],
-      ssl: { rejectUnauthorized: false, servername: dbUrl.hostname } // servername é vital quando se usa IP
-    });
-
     // Teste de conexão
     await pool.query('SELECT NOW()');
     console.log('✅ Conectado ao banco de dados PostgreSQL!');
@@ -140,6 +121,11 @@ async function initializeDatabase() {
       console.error('\n💡 DICA: A senha do banco de dados está incorreta.');
       console.error('   Verifique o arquivo .env na pasta backend e confirme a variável DATABASE_URL.\n');
     }
+    if (err.code === 'ENETUNREACH' || err.code === 'ENOTFOUND') {
+      console.error('\n💡 DICA: Erro de conexão de rede (IPv6 vs IPv4).');
+      console.error('   O Render trabalha com IPv4, mas o Supabase direto pode ser IPv6-only.');
+      console.error('   👉 SOLUÇÃO: Atualize a DATABASE_URL no Render para usar o "Connection Pooler" (porta 6543).\n');
+    }
     process.exit(1); // Encerra a aplicação se não conseguir conectar/inicializar o DB
   }
 }
@@ -148,9 +134,6 @@ initializeDatabase();
 
 module.exports = {
   query: (text, params) => {
-    if (!pool) {
-      throw new Error('Banco de dados ainda não inicializado. Tente novamente em instantes.');
-    }
     return pool.query(text, params);
   },
 };
