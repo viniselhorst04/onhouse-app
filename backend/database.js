@@ -1,5 +1,6 @@
 // backend/database.js
 const { Pool } = require('pg');
+const dns = require('dns');
 
 // IMPORTANTE: A Render injeta a URL de conexão automaticamente como uma variável de ambiente.
 // Não cole a sua URL aqui diretamente por segurança.
@@ -9,31 +10,31 @@ if (!connectionString) {
   console.error("❌ ERRO: DATABASE_URL não definida. Crie um arquivo .env na pasta backend.");
 }
 
-// Configuração explícita para forçar IPv4
-// O driver 'pg' pode ignorar 'family: 4' se usarmos connectionString direto.
-let poolConfig;
-try {
-  const dbUrl = new URL(connectionString);
-  poolConfig = {
-    user: dbUrl.username,
-    password: dbUrl.password,
-    host: dbUrl.hostname,
-    port: dbUrl.port,
-    database: dbUrl.pathname.split('/')[1],
-    ssl: { rejectUnauthorized: false },
-    family: 4 // Força IPv4
-  };
-} catch (error) {
-  poolConfig = { connectionString, ssl: { rejectUnauthorized: false }, family: 4 };
-}
-
-const pool = new Pool(poolConfig);
-
-// Log de diagnóstico para confirmar que a versão correta subiu
-console.log("🔧 Tentando conectar ao banco (Parse Manual IPv4)...");
+let pool;
 
 async function initializeDatabase() {
   try {
+    console.log("🔧 Resolvendo DNS para IPv4 manualmente...");
+    const dbUrl = new URL(connectionString);
+    
+    // Resolve o hostname para IPv4 explicitamente antes de conectar
+    const { address } = await new Promise((resolve, reject) => {
+      dns.lookup(dbUrl.hostname, { family: 4 }, (err, address) => {
+        if (err) reject(err);
+        else resolve({ address });
+      });
+    });
+    console.log(`✅ DNS Resolvido: ${dbUrl.hostname} -> ${address}`);
+
+    pool = new Pool({
+      user: dbUrl.username,
+      password: dbUrl.password,
+      host: address, // Usa o IP resolvido
+      port: dbUrl.port,
+      database: dbUrl.pathname.split('/')[1],
+      ssl: { rejectUnauthorized: false, servername: dbUrl.hostname } // servername é vital quando se usa IP
+    });
+
     // Teste de conexão
     await pool.query('SELECT NOW()');
     console.log('✅ Conectado ao banco de dados PostgreSQL!');
@@ -146,5 +147,10 @@ async function initializeDatabase() {
 initializeDatabase();
 
 module.exports = {
-  query: (text, params) => pool.query(text, params),
+  query: (text, params) => {
+    if (!pool) {
+      throw new Error('Banco de dados ainda não inicializado. Tente novamente em instantes.');
+    }
+    return pool.query(text, params);
+  },
 };
