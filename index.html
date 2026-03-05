@@ -139,8 +139,9 @@
     // --- Global State & Constants ---
     // Detecta se está rodando localmente ou em produção
     
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const API_URL = isLocal ? 'http://localhost:3000/api' : 'https://onhouse-app.onrender.com/api';
+    // Se não estiver no domínio de produção (Render), assume que é local (PC ou Celular na rede)
+    const isProduction = window.location.hostname.includes('onrender.com');
+    const API_URL = isProduction ? 'https://onhouse-app.onrender.com/api' : `http://${window.location.hostname}:3000/api`;
 
     
     let appData = { announcements: [], deliveries: [], reservations: [] };
@@ -567,10 +568,60 @@
             ? `<img src="${profile.avatar}" class="avatar" style="width:60px;height:60px" alt="Foto de perfil">`
             : `<div class="avatar" style="width:60px;height:60px;font-size:24px">${profile.initials}</div>`;
 
-        openPanel(`<h2>Perfil</h2>
-          <div class='item' style="display:flex; align-items:center; gap: 12px;">${avatarHTML}<div><strong>${profile.name}</strong><div class='small'>${profile.role}</div></div></div>
-          <div style='margin-top:12px; display:flex; gap: 8px;'><button class='toggle' onclick='handleLogout()'>Sair</button><button class='toggle' onclick='closePanel()'>Fechar</button></div>
-          <p class="small" style="margin-top: 12px;">Funcionalidades de alterar nome/foto serão implementadas.</p>`);
+        openPanel(`
+          <h2>Meu Perfil</h2>
+          <div class='item' style="display:flex; align-items:center; gap: 12px; margin-bottom: 20px;">
+            ${avatarHTML}
+            <div>
+              <div class='small'>${profile.role.toUpperCase()}</div>
+              <div class='small'>@${profile.username}</div>
+            </div>
+          </div>
+          
+          <label>Nome Completo</label>
+          <input id="edit-name" value="${profile.name}">
+          
+          <label>Nova Senha (ou atual)</label>
+          <input id="edit-pass" type="password" placeholder="Digite a senha">
+
+          <div style='margin-top:20px; display:flex; gap: 8px;'>
+            <button class='primary' id="btn-save-profile">Salvar Alterações</button>
+            <button class='toggle' onclick='handleLogout()'>Sair da Conta</button>
+          </div>
+          <div style='margin-top:10px'><button class='toggle' style="width:100%" onclick='closePanel()'>Fechar</button></div>
+        `);
+
+        document.getElementById('btn-save-profile').onclick = handleUpdateProfile;
+    }
+
+    async function handleUpdateProfile() {
+        const name = document.getElementById('edit-name').value.trim();
+        const password = document.getElementById('edit-pass').value.trim();
+
+        if (!name || !password) {
+            showToast('Preencha nome e senha para salvar.', 'error');
+            return;
+        }
+
+        try {
+            await fetchWithAuth('/users/profile', {
+                method: 'PUT',
+                body: JSON.stringify({ name, password })
+            });
+            
+            // Atualiza os dados na sessão local
+            const currentUser = JSON.parse(sessionStorage.getItem('loggedInUser'));
+            currentUser.name = name;
+            sessionStorage.setItem('loggedInUser', JSON.stringify(currentUser));
+            
+            // Atualiza a interface
+            renderUserProfile(currentUser);
+            showToast('Perfil atualizado com sucesso!');
+            closePanel();
+        } catch (error) {
+            console.error('Erro ao atualizar perfil:', error);
+            showToast(error.message, 'error');
+        }
     }
 
     // --- Initialization ---

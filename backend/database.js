@@ -11,7 +11,8 @@ if (!connectionString) {
 
 const pool = new Pool({
   connectionString,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  family: 4 // Força o uso de IPv4 para evitar erros de conexão (ENETUNREACH) no Render
 });
 
 async function initializeDatabase() {
